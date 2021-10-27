@@ -101,12 +101,13 @@ MOD3:
                 and ecx, 0100b ; 0 -> L, 1 -> H
                 shr ecx, 2
                 add edx, ecx ; register "address" now in edx
-                jmp 
+                jmp REG_WHICH
 RM_REGW:
                 ; 16bit register
                 mov ecx, eax
                 and ecx, 0111b
                 lea edx, REGW[ecx * 2] ; register "address" now in edx
+                ; fall-through REG_WHICH
 REG_WHICH:
                 shr eax, 3 ; 000 mod[2] reg[3]
                 ; need to decide 16bit or 8bit register
@@ -121,14 +122,16 @@ REG_WHICH:
                 and ecx, 0100b ; 0 -> L, 1 -> H
                 shr ecx, 2
                 add esi, ecx ; reg register "address" now in esi
-                jmp 
+                jmp Exec
 REG_REGW:
                 ; 16bit register
                 mov ecx, eax
                 and ecx, 0111b
                 lea esi, REGW[ecx * 2] ; reg register "address" now in esi
-
+                jmp Exec
 DecodeIAC:
+
+Exec:
                 mov edx, OpTable
                 ;mov edi, i
                 movzx eax, word ptr [edx + edi * 2]
