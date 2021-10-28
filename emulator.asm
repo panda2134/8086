@@ -18,12 +18,21 @@ R_BP            word 0
 R_SI            word 0
 R_DI            word 0
 
+R_ES            word 0
+R_CS            word 0FFFFH
+R_SS            word 0
+R_DS            word 0
+
+R_FLAGS         byte 0
+
+MEMO            byte 1048576 DUP(?)
+MEMO_Guard      byte 00FFH
 
 .code
 ArithLogic PROC, ip: ptr byte
                 mov ebx, ip
-                movzx eax, byte ptr [ebx]
-                test eax, 11000100b
+                movzx eax, word ptr [ebx]; read 2 bytes at once for later use, may exceed 1M, but we are in a emulator
+                test eax, 11000100b ; only test low byte -- the first byte
                 jz DecodeRRM; must be 00xxx0xx, No Imm Op
                 test eax, 01111100b
                 jz DecodeIRM; must be 100000xx(with test 11000100b not zero), Imm to reg/mem
@@ -31,8 +40,15 @@ ArithLogic PROC, ip: ptr byte
                 jz DecodeIAC; must be 00xxx10x(with test 11000100b not zero), Imm to accumulator Op
                 ret; Other Instructions
 DecodeRRM:
+                push ax ; op[3] in first byte, but we only can push 16bit reg
+                shr eax, 8 ; prepare for ModeDecode
+                jmp ModeDecode
 DecodeIRM:
-                movzx eax, byte ptr [ebx + 1]; mod[2] reg[3] r/m[3]
+                shr eax, 8 ; op[3] in second byte
+                push ax
+                ; fall-through
+ModeDecode:
+                ; eax already = mod[2] reg[3] r/m[3]
                 mov ecx, eax
                 shr ecx, 6; mod
                 jnz MOD123
@@ -89,16 +105,20 @@ RM11X
                 movzx edx, word ptr R_BX[ecx * 4]
                 jmp ADD_DISP
 ADD_DISP:
-                add edx, edi ; effective address now in edx
+                add edx, edi ; (virtual) effective address now in edx
+                ; now edi free
+                add edx, offset MEMO
+                movzx ecx, R_DS ; (virtual) data segment, may be override, TODO
+                add edx, ecx
+                movzx edi, byte ptr [ebx] ; prepare for REG_OR_IMM
                 jmp REG_OR_IMM
 MOD3:
                 ; r/m = register
-                ; need to decide 16bit or 8bit register
-                movzx ecx, byte ptr [ebx]
-                test ecx, 0001b
+                movzx edi, byte ptr [ebx]
+                mov ecx, eax ; mod[2] reg[3] r/m[3], moved before jump to reuse code
+                test edi, 0001b ; decide 16bit or 8bit register
                 jnz RM_REGW
                 ; 8bit register
-                mov ecx, eax ; mod[2] reg[3] r/m[3]
                 and ecx, 0011b
                 lea edx, REGB[ecx * 2] ; ACDB
                 mov ecx, eax
@@ -108,61 +128,97 @@ MOD3:
                 jmp REG_OR_IMM
 RM_REGW:
                 ; 16bit register
-                mov ecx, eax
                 and ecx, 0111b
                 lea edx, REGW[ecx * 2] ; register "address" now in edx
                 ; fall-through REG_OR_IMM
 REG_OR_IMM:
-                movzx ecx, byte ptr [ebx]
-                test ecx, 10000000b
+                test edi, 10000000b ; first byte already in edi
                 jnz IMM_SRC
                 ; Not Imm, Use Reg
-                shr eax, 3 ; 000 mod[2] reg[3]
-                ; need to decide 16bit or 8bit register
-                test ecx, 0001b
+                shr eax, 3 
+                mov ecx, eax ; 000 mod[2] reg[3], moved before jump to reuse code
+                test edi, 0001b ; decide 16bit or 8bit register
                 jnz REG_REGW
                 ; 8bit register
-                mov ecx, eax ; 000 mod[2] reg[3]
-                and ecx, 0011b
+                and ecx, 0011b ; ecx = 000 mod[2] reg[3]
                 lea esi, REGB[ecx * 2] ; ACDB
                 mov ecx, eax
                 and ecx, 0100b ; 0 -> L, 1 -> H
                 shr ecx, 2
                 add esi, ecx ; reg register "address" now in esi
-                jmp Exec
+                jmp SRC_DEST ; first byte still in edi
 REG_REGW:
                 ; 16bit register
-                mov ecx, eax
                 and ecx, 0111b
                 lea esi, REGW[ecx * 2] ; reg register "address" now in esi
-                jmp Exec
+                jmp SRC_DEST ; first byte still in edi
 IMM_SRC:
-                ; imm data address already in esi
+                ; (virtual) imm data address already in esi
+                add esi, offset MEMO
+                movzx ecx, R_CS
+                add esi, ecx
+                jmp SRC_DEST ; first byte still in edi
 DecodeIAC:
 
-Exec:
-                mov edx, OpTable
-                ;mov edi, i
-                movzx eax, word ptr [edx + edi * 2]
-                add eax, edx
+SRC_DEST:
+                ; first byte already in edi
+                test edi, 0010b; d[1] or 0 (Imm)
+                jz Exec ; no need to exchange
+                xchg esi, edx ; put src in esi and dest in edx, for sub/sbb/cmp and write back
+                ; fall-through
+Exec:           
+                ; first byte still in edi
+                pop cx ; decode op
+                and ecx, 00111000b
+                shr ecx, 1 ; Not fully shift, eliminate * 4 for sizeof dword in OpTable
+                mov eax, dword ptr [OpTable + ecx]
+                ; prepare operand, using movzx
+                test edi, 0001b ; decide 8bit or 16bit operand
+                jnz OperandW ; word operand
+                ; now edi free
+                movzx edi, byte ptr [edx] ; dest operand
+                movzx ecx, byte ptr [esi] ; src operand
+                jmp eax
+OperandW:
+                movzx edi, word ptr [edx]
+                movzx ecx, word ptr [esi]
                 jmp eax
 OpTable:
-                word I_ADD - OpTable
-                word I_OR - OpTable
-                word I_ADC - OpTable
-                word I_SBB - OpTable
+                ; could store diff to some near Anchor(e.g. OpTable) to save space
+                ; but we use a straightforward method
+                dword I_ADD
+                dword I_OR
+                dword I_ADC
+                dword I_SBB
 I_ADD:
-                invoke printf, offset szMsg, edi
-                ret
+                add edi, ecx
+                jmp WriteBack
 I_OR:
-                invoke printf, offset szMsg, edi
-                ret
+                or edi, ecx
+                jmp WriteBack
 I_ADC:
-                invoke printf, offset szMsg, edi
-                ret
+                adc edi, ecx
+                jmp WriteBack
 I_SBB:
-                invoke printf, offset szMsg, edi
-                ret                      
+                sbb edi, ecx
+                jmp WriteBack
+I_AND:
+                and edi, ecx
+                jmp WriteBack
+I_SUB:
+                sub edi, ecx
+                jmp WriteBack
+I_XOR:
+                xor edi, ecx
+                ; fall through
+WriteBack:
+                mov [edx], edi
+                ret
+I_CMP:
+                cmp edi, ecx
+                lahf
+                mov R_FLAGS, ah
+                ret
 ArithLogic ENDP
 run:
                 invoke printf, offset szMsg, eax, ebx
