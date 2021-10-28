@@ -40,15 +40,15 @@ ArithLogic PROC, ip: ptr byte
                 jz DecodeIAC; must be 00xxx10x(with test 11000100b not zero), Imm to accumulator Op
                 ret; Other Instructions
 DecodeRRM:
-                push ax ; op[3] in first byte, but we only can push 16bit reg
+                push eax ; op[3] in first byte, but we push 32bit to prevent partial register stalls when pop
                 shr eax, 8 ; prepare for ModeDecode
                 jmp ModeDecode
 DecodeIRM:
                 shr eax, 8 ; op[3] in second byte
-                push ax
+                push eax
                 ; fall-through
 ModeDecode:
-                ; eax already = mod[2] reg[3] r/m[3]
+                ; eax low8 already = mod[2] reg[3] r/m[3] or mod[2] op[3] r/m[3]
                 mov ecx, eax
                 shr ecx, 6; mod
                 jnz MOD123
@@ -163,76 +163,109 @@ DecodeIAC:
 SRC_DEST:
                 ; first byte already in edi
                 test edi, 10000000b;
-                jnz Exec ; Imm to r/m, no need to exchange
-                test edi, 0010b; d[1]
-                jz Exec ; d = 0 no need to exchange
+                jnz OperandB ; Imm to r/m, no need to exchange
+                test edi, 0010b; d[1] or s[1] (Imm to r/m case)
+                jz OperandB ; d = 0 no need to exchange
                 xchg esi, edx ; put src in esi and dest in edx, for sub/sbb/cmp and write back
                 ; fall-through
-Exec:           
+OperandB:           
                 ; first byte still in edi
-                pop cx ; decode op
-                and ecx, 00111000b
-                shr ecx, 1 ; Not fully shift, eliminate * 4 for sizeof dword in OpTable
-                mov eax, dword ptr [OpTable + ecx]
-                ; prepare operand, using movzx
                 test edi, 0001b ; decide 8bit or 16bit operand
                 jnz OperandW ; word operand
-                movzx ecx, byte ptr [edx] ; dest operand
-                movzx esi, byte ptr [esi] ; src operand, no need to preserve src addr
-                jmp eax
+                ; use 8bit partia reg for convenience
+                ; generally that will be slower because of partial register stalls
+                ; fortunately we don't need to read from cx or ecx, actually no stall occur
+                mov cl, byte ptr [edx] ; dest operand
+                mov ch, byte ptr [esi] ; src operand
+                pop eax ; decode op
+                and eax, 00111000b ; select bits, clear others
+                ; Not shift, eliminate index * 8 for OpTable
+                jmp dword ptr [OpTable + eax]
 OperandW:
                 ; first byte still in edi
-                movzx ecx, word ptr [edx]
+                movzx ecx, word ptr [edx]; only use cx
                 test edi, 10000000b
-                jz NotSignExt
+                jz NotSignExt ; No Imm
                 test edi, 0010b; s[1]
                 jz NotSignExt
-                movsx esi, byte ptr [esi]
-                jmp eax
+                movsx si, byte ptr [esi] ; src operand, no need to preserve its addr
+                jmp OperandWExec
 NotSignExt:
-                movzx esi, word ptr [esi]
-                jmp eax
+                mov si, word ptr [esi]
+                ; fall-through
+OperandWExec:
+                pop eax ; decode op
+                and eax, 00111000b ; select bits, clear others
+                ; Not shift, eliminate index * 8 for OpTable
+                jmp dword ptr [OpTable + 4 + eax]
 OpTable:
                 ; could store diff to some near Anchor(e.g. OpTable) to save space
                 ; but we use a straightforward method
-                dword I_ADD
-                dword I_OR
-                dword I_ADC
-                dword I_SBB
-I_ADD:
-                add ecx, esi
-                jmp WriteBack
-I_OR:
-                or ecx, esi
-                jmp WriteBack
-I_ADC:
-                adc ecx, esi
-                jmp WriteBack
-I_SBB:
-                sbb ecx, esi
-                jmp WriteBack
-I_AND:
-                and ecx, esi
-                jmp WriteBack
-I_SUB:
-                sub ecx, esi
-                jmp WriteBack
-I_XOR:
-                xor ecx, esi
-                ; fall through
-WriteBack:
-                test edi, 0001b ; decide 8bit or 16bit operand
-                jnz WriteBackW
+                dword B_ADD, W_ADD
+                dword B_OR, W_OR
+                dword B_ADC, W_ADC
+                dword B_SBB, W_SBB
+                dword B_AND, W_AND
+                dword B_SUB, W_SUB
+                dword B_XOR, W_XOR
+                dword B_CMP, W_CMP
+B_CMP:
+                cmp cl, ch
+                jmp WriteFlags
+B_XOR:
+                xor cl, ch
+                jmp WriteBackB
+B_SUB:
+                sub cl, ch
+                jmp WriteBackB
+B_AND:
+                and cl, ch
+                jmp WriteBackB
+B_SBB:
+                sbb cl, ch
+                jmp WriteBackB
+B_ADC:
+                adc cl, ch
+                jmp WriteBackB      
+B_OR:
+                or cl, ch
+                jmp WriteBackB
+B_ADD:
+                add cl, ch
+                ; fall-through
+WriteBackB:
                 mov byte ptr [edx], cl
-                ret
+                jmp WriteFlags
+W_CMP:
+                cmp cx, si
+                jmp WriteFlags
+W_XOR:
+                xor cx, si
+                jmp WriteBackW
+W_SUB:
+                sub cx, si
+                jmp WriteBackW
+W_AND:
+                and cx, si
+                jmp WriteBackW
+W_SBB:
+                sbb cx, ch
+                jmp WriteBackW
+W_ADC:
+                adc cx, si
+                jmp WriteBackW
+W_OR:
+                or cx, si
+                jmp WriteBackW
+W_ADD:
+                add cx, si
+                ; fall-through
 WriteBackW:
                 mov word ptr [edx], cx
-                ret
-I_CMP:
-                cmp edi, ecx
-                lahf
+                ; fall-through
+WriteFlags:
+                lahf ; load flags into ah
                 mov R_FLAGS, ah
-                ret
 ArithLogic ENDP
 run:
                 invoke printf, offset szMsg, eax, ebx
