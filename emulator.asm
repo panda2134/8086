@@ -155,15 +155,17 @@ REG_REGW:
 IMM_SRC:
                 ; (virtual) imm data address already in esi
                 add esi, offset MEMO
-                movzx ecx, R_CS
+                movzx ecx, word ptr R_CS
                 add esi, ecx
                 jmp SRC_DEST ; first byte still in edi
 DecodeIAC:
 
 SRC_DEST:
                 ; first byte already in edi
-                test edi, 0010b; d[1] or 0 (Imm)
-                jz Exec ; no need to exchange
+                test edi, 10000000b;
+                jnz Exec ; Imm to r/m, no need to exchange
+                test edi, 0010b; d[1]
+                jz Exec ; d = 0 no need to exchange
                 xchg esi, edx ; put src in esi and dest in edx, for sub/sbb/cmp and write back
                 ; fall-through
 Exec:           
@@ -175,13 +177,20 @@ Exec:
                 ; prepare operand, using movzx
                 test edi, 0001b ; decide 8bit or 16bit operand
                 jnz OperandW ; word operand
-                ; now edi free
-                movzx edi, byte ptr [edx] ; dest operand
-                movzx ecx, byte ptr [esi] ; src operand
+                movzx ecx, byte ptr [edx] ; dest operand
+                movzx esi, byte ptr [esi] ; src operand, no need to preserve src addr
                 jmp eax
 OperandW:
-                movzx edi, word ptr [edx]
-                movzx ecx, word ptr [esi]
+                ; first byte still in edi
+                movzx ecx, word ptr [edx]
+                test edi, 10000000b
+                jz NotSignExt
+                test edi, 0010b; s[1]
+                jz NotSignExt
+                movsx esi, byte ptr [esi]
+                jmp eax
+NotSignExt:
+                movzx esi, word ptr [esi]
                 jmp eax
 OpTable:
                 ; could store diff to some near Anchor(e.g. OpTable) to save space
@@ -191,28 +200,33 @@ OpTable:
                 dword I_ADC
                 dword I_SBB
 I_ADD:
-                add edi, ecx
+                add ecx, esi
                 jmp WriteBack
 I_OR:
-                or edi, ecx
+                or ecx, esi
                 jmp WriteBack
 I_ADC:
-                adc edi, ecx
+                adc ecx, esi
                 jmp WriteBack
 I_SBB:
-                sbb edi, ecx
+                sbb ecx, esi
                 jmp WriteBack
 I_AND:
-                and edi, ecx
+                and ecx, esi
                 jmp WriteBack
 I_SUB:
-                sub edi, ecx
+                sub ecx, esi
                 jmp WriteBack
 I_XOR:
-                xor edi, ecx
+                xor ecx, esi
                 ; fall through
 WriteBack:
-                mov [edx], edi
+                test edi, 0001b ; decide 8bit or 16bit operand
+                jnz WriteBackW
+                mov byte ptr [edx], cl
+                ret
+WriteBackW:
+                mov word ptr [edx], cx
                 ret
 I_CMP:
                 cmp edi, ecx
