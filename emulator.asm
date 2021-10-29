@@ -99,7 +99,7 @@ RM1XX:
                 and ecx, 0001b ; Index = i ? DI : SI, R_DI = R_SI + 4
                 movzx edx, word ptr R_SI[ecx * 2]
                 jmp ADD_DISP
-RM11X
+RM11X:
                 ; r/m = 11x
                 and ecx, 0001b ; Base = b ? BP : BX, R_BP = R_BX + 4
                 movzx edx, word ptr R_BX[ecx * 4]
