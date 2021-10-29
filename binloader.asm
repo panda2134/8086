@@ -37,15 +37,14 @@ LOCAL hFile:dword, numBytesRead:dword, fileSize:dword, mbrAddr:ptr dword
     mov eax, 512
 loadbin_file_small:
     mov fileSize, eax
-    mov ecx, dword ptr [mem]
+    mov ecx, mem
     add ecx, 7c00h
     mov mbrAddr, ecx
     INVOKE ReadFile, hFile, ecx, fileSize, ADDR numBytesRead, 0 ; read file to 7c00h
     test eax, eax
     jz loadbin_error_ret
-    mov ecx, [mbrAddr]
-    mov eax, [ecx + 510]
-    cmp eax, 0aa55h ; check for mbr flag
+    mov ecx, mbrAddr
+    cmp dword ptr [ecx + 510], 0aa55h ; check for mbr flag
     jne loadbin_error_ret ; error if no flag detected
     mov eax, 0 ; success
     ret

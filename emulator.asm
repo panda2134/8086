@@ -29,164 +29,173 @@ MEMO            byte 1048576 DUP(?)
 MEMO_Guard      byte 00FFH
 
 .code
-ArithLogic PROC, ip: ptr byte
-                mov ebx, ip
+; origin pc pass in ebx, new pc return in edi
+ArithLogic PROC
                 movzx eax, word ptr [ebx]; read 2 bytes at once for later use, may exceed 1M, but we are in a emulator
                 test eax, 11000100b ; only test low byte -- the first byte
-                jz DecodeRRM; must be 00xxx0xx, No Imm Op
+                jz RegWithRegOrMem; must be 00xxx0xx, No Imm Op
                 test eax, 01111100b
-                jz DecodeIRM; must be 100000xx(with test 11000100b not zero), Imm to reg/mem
+                jz ImmWithRegOrMem; must be 100000xx(with test 11000100b not zero), Imm to reg/mem
                 test eax, 11000010b
-                jz DecodeIAC; must be 00xxx10x(with test 11000100b not zero), Imm to accumulator Op
+                jz ImmToAcc; must be 00xxx10x(with test 11000100b not zero), Imm to accumulator Op
                 ret; Other Instructions
-DecodeRRM:
-                push eax ; op[3] in first byte, but we push 32bit to prevent partial register stalls when pop
-                shr eax, 8 ; prepare for ModeDecode
-                jmp ModeDecode
-DecodeIRM:
-                shr eax, 8 ; op[3] in second byte
-                push eax
-                ; fall-through
-ModeDecode:
-                ; eax low8 already = mod[2] reg[3] r/m[3] or mod[2] op[3] r/m[3]
-                mov ecx, eax
-                shr ecx, 6; mod
+ImmToAcc:
+                xor ecx, ecx
+                test al, 0001b
+                setnz cl
+                lea edx, [R_AX] ; dest addr
+                lea esi, [ebx + 1] ; src addr
+                lea edi, [ebx + 2 + ecx] ; new pc
+                ; now ebx free
+                movzx ebx, al ; first byte contains op[3]
+                jmp Operand
+ImmWithRegOrMem:
+RegWithRegOrMem:
+ModDecode:
+                ; ah already = mod[2] reg[3] r/m[3] or mod[2] op[3] r/m[3]
+                mov cl, ah
+                shr cl, 6; mod
                 jnz MOD123
                 ; mod = 00
-                mov ecx, eax ; mod[2] reg[3] r/m[3]
-                and ecx, 0111b ; r/m[3]
-                cmp ecx, 0110b ; check special case
-                jne NO_DISP
-                ; r/m = 110 special case, displacement only
+                mov cl, ah ; mod[2] reg[3] r/m[3]
+                and cl, 0111b ; r/m[3]
+                cmp cl, 0110b ; check special case
+                jne NoDisplacement
+                ; r/m = 110 special case, 16bit displacement only
                 movzx edi, word ptr [ebx + 2]
                 lea esi, [ebx + 4] ; Start of Imm data
-                jmp ADD_DISP
-NO_DISP:
+                jmp AddDisplacment
+NoDisplacement:
                 xor edi, edi ; common case, no displacement
                 lea esi, [ebx + 2] ; Start of Imm data
                 jmp E_ADDR
 MOD123:
-                cmp ecx, 1
+                cmp cl, 1
                 jne MOD23
                 ; mod = 01
-                movzx edi, byte ptr [ebx + 2]
+                movzx edi, byte ptr [ebx + 2] ; 8bit displacement
                 lea esi, [ebx + 3] ; Start of Imm data
                 jmp E_ADDR
 MOD23:
-                cmp ecx, 2
+                cmp cl, 2
                 jne MOD3
                 ; mod = 10
-                movzx edi, word ptr [ebx + 2]
+                movzx edi, word ptr [ebx + 2] ; 16bit displacement
                 lea esi, [ebx + 4] ; Start of Imm data
-                ; fall-through E_ADDR
+                ; fall-through
 E_ADDR:
                 ; displacement in edi
-                mov ecx, eax ; mod[2] reg[3] r/m[3]
+                movzx ecx, ah ; mod[2] reg[3] r/m[3]
                 test ecx, 0100b
-                jnz RM1XX
+                jnz RM_Is1XX
                 ; r/m = 0xx
                 and ecx, 0010b ; Base = b ? BP : BX, R_BP = R_BX + 4
                 movzx edx, word ptr R_BX[ecx * 2] ; actually word ptr is not needed
-                mov ecx, eax ; mod[2] reg[3] r/m[3]
+                movzx ecx, ah ; mod[2] reg[3] r/m[3]
                 and ecx, 0001b ; Index = i ? DI : SI, R_DI = R_SI + 4
                 movzx ecx, word ptr R_SI[ecx * 2]
                 add edx, ecx
-                jmp ADD_DISP
-RM1XX:
+                jmp AddDisplacment
+RM_Is1XX:
                 test ecx, 0001b
-                jnz RM11X
+                jnz RM_Is11X
                 ; r/m = 10x
                 and ecx, 0001b ; Index = i ? DI : SI, R_DI = R_SI + 4
                 movzx edx, word ptr R_SI[ecx * 2]
-                jmp ADD_DISP
-RM11X:
+                jmp AddDisplacment
+RM_Is11X:
                 ; r/m = 11x
                 and ecx, 0001b ; Base = b ? BP : BX, R_BP = R_BX + 4
                 movzx edx, word ptr R_BX[ecx * 4]
-                jmp ADD_DISP
-ADD_DISP:
+                ; fall-through
+AddDisplacment:
                 add edx, edi ; (virtual) effective address now in edx
                 ; now edi free
                 add edx, offset MEMO
                 movzx ecx, R_DS ; (virtual) data segment, may be override, TODO
                 add edx, ecx
-                movzx edi, byte ptr [ebx] ; prepare for REG_OR_IMM
-                jmp REG_OR_IMM
+                jmp SrcIsRegOrImm
 MOD3:
                 ; r/m = register
-                movzx edi, byte ptr [ebx]
-                mov ecx, eax ; mod[2] reg[3] r/m[3], moved before jump to reuse code
-                test edi, 0001b ; decide 16bit or 8bit register
-                jnz RM_REGW
+                lea esi, [ebx + 2] ; Start of Imm data (No Displacement)
+                ; now ebx free
+                movzx ecx, ah ; mod[2] reg[3] r/m[3], moved before jump to reuse code
+                test al, 0001b ; first byte still in al, decide 16bit or 8bit register
+                jnz RM_IsWordReg
                 ; 8bit register
                 and ecx, 0011b
                 lea edx, REGB[ecx * 2] ; ACDB
-                mov ecx, eax
+                movzx ecx, ah
                 and ecx, 0100b ; 0 -> L, 1 -> H
                 shr ecx, 2
                 add edx, ecx ; register "address" now in edx
-                jmp REG_OR_IMM
-RM_REGW:
+                jmp SrcIsRegOrImm
+RM_IsWordReg:
                 ; 16bit register
                 and ecx, 0111b
                 lea edx, REGW[ecx * 2] ; register "address" now in edx
-                ; fall-through REG_OR_IMM
-REG_OR_IMM:
-                test edi, 10000000b ; first byte already in edi
-                jnz IMM_SRC
+                ; fall-through
+SrcIsRegOrImm:
+                mov edi, esi; save "Start of Imm data" for new pc
+                test al, 10000000b ; first byte still in al
+                jnz SrcIsImm
                 ; Not Imm, Use Reg
-                shr eax, 3 
-                mov ecx, eax ; 000 mod[2] reg[3], moved before jump to reuse code
-                test edi, 0001b ; decide 16bit or 8bit register
-                jnz REG_REGW
+                movzx ebx, al ; first byte contains op[3]
+                shr ah, 3
+                movzx ecx, ah ; 000 mod[2] reg[3], moved before jump to reuse code
+                test al, 0001b ; decide 16bit or 8bit register
+                jnz REG_IsWordReg
                 ; 8bit register
                 and ecx, 0011b ; ecx = 000 mod[2] reg[3]
                 lea esi, REGB[ecx * 2] ; ACDB
-                mov ecx, eax
+                movzx ecx, ah
                 and ecx, 0100b ; 0 -> L, 1 -> H
                 shr ecx, 2
                 add esi, ecx ; reg register "address" now in esi
-                jmp SRC_DEST ; first byte still in edi
-REG_REGW:
+                jmp SRC_DEST ; first byte still in al
+REG_IsWordReg:
                 ; 16bit register
                 and ecx, 0111b
                 lea esi, REGW[ecx * 2] ; reg register "address" now in esi
-                jmp SRC_DEST ; first byte still in edi
-IMM_SRC:
+                jmp SRC_DEST ; first byte still in al
+SrcIsImm:
+                movzx ebx, ah ; second byte contains op[3]
+                ; compute new pc
+                xor ecx, ecx
+                cmp al, 10000011b ; 100000 s[1] w[1], 00: +1, 01: +2, 10: +1, 11: +1
+                sete cl
+                lea edi, [edi + 1 + ecx]
                 ; (virtual) imm data address already in esi
                 add esi, offset MEMO
                 movzx ecx, word ptr R_CS
                 add esi, ecx
-                jmp SRC_DEST ; first byte still in edi
-DecodeIAC:
-
+                jmp SRC_DEST ; first byte still in al
 SRC_DEST:
-                ; first byte already in edi
-                test edi, 10000000b;
-                jnz OperandB ; Imm to r/m, no need to exchange
-                test edi, 0010b; d[1] or s[1] (Imm to r/m case)
-                jz OperandB ; d = 0 no need to exchange
+                ; first byte still in al
+                test al, 10000000b;
+                jnz Operand ; Imm to r/m, no need to exchange
+                test al, 0010b; d[1] or s[1] (Imm to r/m case)
+                jz Operand ; d = 0 no need to exchange
                 xchg esi, edx ; put src in esi and dest in edx, for sub/sbb/cmp and write back
                 ; fall-through
-OperandB:           
-                ; first byte still in edi
-                test edi, 0001b ; decide 8bit or 16bit operand
+Operand:           
+                ; first byte still in al
+                test al, 0001b ; decide 8bit or 16bit operand
                 jnz OperandW ; word operand
                 ; use 8bit partia reg for convenience
                 ; generally that will be slower because of partial register stalls
                 ; fortunately we don't need to read from cx or ecx, actually no stall occur
                 mov cl, byte ptr [edx] ; dest operand
                 mov ch, byte ptr [esi] ; src operand
-                pop eax ; decode op
-                and eax, 00111000b ; select bits, clear others
+                and ebx, 00111000b ; xx op[3] xxx, select bits, clear others
                 ; Not shift, eliminate index * 8 for OpTable
-                jmp dword ptr [OpTable + eax]
+                jmp dword ptr [OpTable + ebx]
 OperandW:
-                ; first byte still in edi
+                ; first byte still in al
                 movzx ecx, word ptr [edx]; only use cx
-                test edi, 10000000b
-                jz NotSignExt ; No Imm
-                test edi, 0010b; s[1]
+                test al, 10000000b
+                jz NotSignExt ; Not Imm to r/m
+                test al, 0010b; s[1]
                 jz NotSignExt
                 movsx si, byte ptr [esi] ; src operand, no need to preserve its addr
                 jmp OperandWExec
@@ -194,10 +203,9 @@ NotSignExt:
                 mov si, word ptr [esi]
                 ; fall-through
 OperandWExec:
-                pop eax ; decode op
-                and eax, 00111000b ; select bits, clear others
+                and ebx, 00111000b ; xx op[3] xxx, select bits, clear others
                 ; Not shift, eliminate index * 8 for OpTable
-                jmp dword ptr [OpTable + 4 + eax]
+                jmp dword ptr [OpTable + 4 + ebx]
 OpTable:
                 ; could store diff to some near Anchor(e.g. OpTable) to save space
                 ; but we use a straightforward method
@@ -249,7 +257,7 @@ W_AND:
                 and cx, si
                 jmp WriteBackW
 W_SBB:
-                sbb cx, ch
+                sbb cx, si
                 jmp WriteBackW
 W_ADC:
                 adc cx, si
@@ -266,6 +274,7 @@ WriteBackW:
 WriteFlags:
                 lahf ; load flags into ah
                 mov R_FLAGS, ah
+                ret
 ArithLogic ENDP
 run:
                 invoke printf, offset szMsg, eax, ebx
