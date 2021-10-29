@@ -15,7 +15,7 @@ printf          PROTO C :ptr byte, :VARARG
     buf byte 80*25*2 dup(?)
 .code
 
-InitEmuScreen PROC
+InitEmuScreen PROC ; call this only once to initialize the emulator screen
 LOCAL hCon:dword, hWin:dword, termSize:COORD, rect:SMALL_RECT
     INVOKE GetStdHandle, STD_OUTPUT_HANDLE
     mov hCon, eax
@@ -31,16 +31,19 @@ LOCAL hCon:dword, hWin:dword, termSize:COORD, rect:SMALL_RECT
 	mov hWin, eax
 	INVOKE GetWindowLong, hWin, GWL_STYLE
 	mov ecx, WS_MAXIMIZEBOX
-	mov edx, WS_SIZEBOX
 	not ecx
-	not edx
 	and eax, ecx
-	and eax, edx ; eax := eax & ~WS_MAXIMIZE_BOX & ~WS_SIZEBOX
+    mov ecx, WS_MINIMIZEBOX
+    not ecx
+    and eax, ecx
+	mov ecx, WS_SIZEBOX
+	not ecx
+	and eax, ecx ; eax := eax & ~WS_MAXIMIZEBOX & ~WS_SIZEBOX & ~WS_MINIMIZEBOX
 	INVOKE SetWindowLong, hWin, GWL_STYLE, eax
 	ret
 InitEmuScreen ENDP
 
-WriteEmuScreen PROC USES ebx esi, mem:ptr byte
+WriteEmuScreen PROC USES ebx esi, mem:ptr byte ; update the emulator screen with memory starting from b800:0
 LOCAL hCon:dword, termCoord:COORD, textAttr:dword
 
     count equ 80*25
@@ -73,7 +76,7 @@ _loop_end:
     ret
 WriteEmuScreen ENDP
 
-GenTest PROC USES ebx esi edi, mem:ptr byte
+GenTest PROC USES ebx esi edi, mem:ptr byte ; generate example text
 LOCAL chr:byte, startChr:byte
     count equ 80*25
 	mov esi, mem
@@ -118,7 +121,7 @@ _start PROC
     INVOKE InitEmuScreen
     INVOKE GenTest, ADDR buf
     INVOKE WriteEmuScreen, ADDR buf
-    INVOKE WriteEmuScreen, ADDR buf
+    INVOKE Sleep, 5000
 _cleanup:
     mov eax, 0
     ret
