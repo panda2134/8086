@@ -631,14 +631,17 @@ FlagInstruction PROC
                 cmp al, 0F9h
                 je ProcessStc
                 ret
-ProcessClc:     lahf
+ProcessClc:     
+                lahf
                 clc
                 sahf
                 jmp StcClcDone
-ProcessStc:     lahf
+ProcessStc:     
+                lahf
                 stc
                 sahf
-StcClcDone:     mov ax, [R_IP]
+StcClcDone:     
+                mov ax, [R_IP]
                 inc ax ; 1 byte long
                 mov R_IP, ax
                 ret
