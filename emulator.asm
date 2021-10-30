@@ -401,23 +401,28 @@ ControlTransfer PROC
                 lea esi, [ebx + 5]
                 jmp Jmp_Indirect_Far ; reuse code
     Call_Jmp_Indirect:
-                push ecx ; error case ret addr
+                test ah, 00110000b
+                jz NotMatch ; xx00xxxx
+                xor ah, 00110000b
+                test ah, 00110000b
+                jz NotMatch ; xx11xxxx
                 computeEffectiveAddress Control_Flow_EA_Done, 0, R_DS
                 ; fall-through
-    Control_Flow_EA_Done:
-                pop ecx
-                movzx edi, ah
-                shr edi, 3
-                and edi, 111b
-                cmp edi, 010b ; check for xx010xxx
-                je Call_Indirect_Near
-                cmp edi, 011b ; check for xx011xxx
-                je Call_Indirect_Far
-                cmp edi, 100b
-                je Jmp_Indirect_Near
-                cmp edi, 101b
-                je Jmp_Indirect_Far
-                jmp ecx ; other instructions
+        Control_Flow_EA_Done:
+                ; IMPORTANT: ah xor with 00110000b
+                test ah, 00100000b
+                jz Jmp_Indirect ; xx10sxxx
+                ; xx01sxxx
+                test ah, 00001000b
+                jz Call_Indirect_Near ; xx010xxx
+                jmp Call_Indirect_Far ; xx011xxx
+            Jmp_Indirect:
+                ; xx10sxxx
+                test ah, 00001000b
+                jz Jmp_Indirect_Near ; xx100xxx
+                jmp Jmp_Indirect_Far ; xx101xxx
+        NotMatch:
+                jmp ecx
     Call_Indirect_Near:
                 movzx edx, R_SP
                 movzx ecx, R_SS
