@@ -32,10 +32,55 @@ MEMO            byte 1048576 DUP(?)
 MEMO_Guard      byte 00FFH
 
 .code
+
+pushEmulatorStack MACRO val
+                IFIDNI <val>, <ax>
+                    ECHO Error: cannot use the given reg here
+                    EXITM
+                ENDIF
+                IFIDNI <val>, <bx>
+                    ECHO Error: cannot use the given reg here
+                    EXITM
+                ENDIF
+                
+                IFIDNI <val>, <ah>
+                    ECHO Error: cannot use the given reg here
+                    EXITM
+                ENDIF
+                IFIDNI <val>, <bh>
+                    ECHO Error: cannot use the given reg here
+                    EXITM
+                ENDIF
+                
+                IFIDNI <val>, <al>
+                    ECHO Error: cannot use the given reg here
+                    EXITM
+                ENDIF
+                IFIDNI <val>, <bl>
+                    ECHO Error: cannot use the given reg here
+                    EXITM
+                ENDIF
+                push eax
+                push ebx
+                mov ax, [R_SS]
+                mov bx, [R_SP]
+                sub bx, TYPE val
+                shl ax, 4
+                add ax, bx
+                and eax, 0FFFFH ; eax is new stack top in emulator
+                mov R_SP, bx    ; write back new SP
+                mov MEMO[eax], val ; put onto stack
+                pop ebx
+                pop eax
+pushEmulatorStack ENDM
+
 ; mod[2] xxx r/m[3] passed by ah, start of instruction(host) passed by ebx
 ; not modified ah and ebx
 ; effective address(host) returned by edx, end of displacement field(host) returned by esi
-computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
+computeEffectiveAddress MACRO LeaveLabel, DisableFallThroughLeave, SegmentType
+                IFB <SegmentType>
+                    SegmentType EQU R_DS
+                ENDIF
                 ; MACRO local label
                 LOCAL NoDisplacement, MOD123, MOD23, RM_Decode, RM_Is1XX, RM_Is11X, AddDisplacment, MOD3, RM_IsWordReg
                 ; ah already = mod[2] reg[3] r/m[3] or mod[2] op[3] r/m[3]
@@ -98,13 +143,13 @@ computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
     AddDisplacment:
                 add edx, edi ; effective address(virtual) now in edx
                 ; now edi free
-                movzx ecx, R_DS ; data segment, may be override, TODO
+                movzx ecx, SegmentType
                 shl ecx, 4
                 lea edx, MEMO[edx + ecx] ; effective address(host)
                 jmp LeaveLabel
     MOD3:
                 ; r/m = register
-                lea esi, [ebx + 2] ; End of displacement (No Displacement)
+                lea esi, [ebx + 2] ; end of displacement(host) (No Displacement)
                 movzx ecx, ah ; mod[2] reg[3] r/m[3], moved before jump to reuse code
                 test al, 0001b ; first byte still in al, decide 16bit or 8bit register
                 jnz RM_IsWordReg
@@ -121,7 +166,7 @@ computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
                 and ecx, 0111b
                 lea edx, REGW[ecx * 2] ; register host address now in edx
                 ; fall-through
-    IF DisableFallThroghLeave
+    IF DisableFallThroughLeave
                     jmp LeaveLabel
     ENDIF
 ENDM
@@ -313,17 +358,14 @@ ControlTransfer PROC
                 cmp ax, 10011010b
                 je Call_Direct_Far
                 cmp ax, 0FFh
-                je Call_Indirect
+                je Call_Jmp_Indirect
 Call_Direct_Near:
                 ; first, push rtn addr (16bit) into stack
-                sub R_SP, 2
-                ; todo: exception when R_SP < 2
-                movzx edx, R_SP
-                movzx ecx, R_SS
-                lea edx, MEMO[edx + ecx]
+                ; todo: exception when edx < 2
                 mov cx, R_IP
                 add cx, 3 ; instruction length = 3 bytes
-                mov word ptr [edx], cx
+                pushEmulatorStack cx
+                mov R_IP, cx ; ip is next instruction
                 ; then retrieve displacement
                 mov di, word ptr [ebx + 1]
                 ; ip += displacement
@@ -331,17 +373,11 @@ Call_Direct_Near:
                 jmp ControlTransfer_Done
 Call_Direct_Far:
                 ; push cs, then push rtn addr
-                sub R_SP, 4
-                movzx edx, R_SP
-                movzx ecx, R_SS
-                lea edx, MEMO[edx + ecx]
-
-                mov cx, R_IP
-                add cx, 5 ; instruction length = 3 bytes
-                mov word ptr [edx], cx
                 mov cx, R_CS
-                mov word ptr [edx + 2], cx
-
+                pushEmulatorStack cx
+                mov cx, R_IP
+                add cx, 5
+                pushEmulatorStack cx
                 ; retrieve new disp and cs
                 mov cx, word ptr [ebx + 1]
                 mov dx, word ptr [ebx + 3]
@@ -349,7 +385,7 @@ Call_Direct_Far:
                 mov R_IP, cx
                 mov R_CS, dx
                 jmp ControlTransfer_Done
-Call_Indirect:
+Call_Jmp_Indirect:
                 movzx ecx, byte ptr [ebx + 1]
                 shr ecx, 3
                 and ecx, 111b
@@ -357,8 +393,16 @@ Call_Indirect:
                 je Call_Indirect_Near
                 cmp ecx, 011b ; check for xx011xxx
                 je Call_Indirect_Far
+                cmp ecx, 100b
+                je Jmp_Indirect_Near
+                cmp ecx. 101b
+                je Jmp_Indirect_Far
                 ret ; other instructions
 Call_Indirect_Near:
+                mov ah, byte ptr [ebx + 1]
+                computeEffectiveAddress Call_Indirect_Near_EA_Done, 1, R_CS
+Call_Indirect_Near_EA_Done:
+                sub edx, MEMO ; convert to virtual addr
 
 Call_Indirect_Far:
 
