@@ -6,6 +6,8 @@ includelib      msvcrt.lib
 printf          PROTO C :ptr byte, :VARARG
 
 .data
+haltMsgTitle    byte "Halted", 0
+haltMsg    byte "HLT is executed; since interrupt is not supported, the emulator will now exit.", 0
 debugMsg        byte "%d %d %d %d", 0AH, 0DH, 0
 invalidOpMsg    byte "Invalid Operation!", 0Dh, 0Ah, 0
 REGB            label byte
@@ -30,8 +32,10 @@ R_FLAGS         byte 0
 
 R_IP            word 0
 
-MEMO            byte 1048576 DUP(?)
 MEMO_Guard      byte 00FFH
+
+.data?
+MEMO            byte 1048576 DUP(?)
 
 .code
 
@@ -183,8 +187,8 @@ ENDM
 
 ; error case return address passed by ecx
 ; success will use ret
+; flat ip in ebx
 ArithLogic PROC
-                computeFlatIP
                 movzx eax, word ptr [ebx]; read 2 bytes at once for later use, may exceed 1M, but we are in a emulator
                 test eax, 11000100b ; only test low byte -- the first byte
                 jz RegWithRegOrMem; must be 00xxx0xx, No Imm Op
@@ -349,9 +353,9 @@ GenerateJmpConditional MACRO inst
                 jmp ControlTransfer_Done
 ENDM
 
+; flat ip in ebx
 ; NOTE: cs can be changed!
 ControlTransfer PROC
-                computeFlatIP
                 movzx eax, byte ptr [ebx] ; read 1 byte into ax, and check type of instruction
 
                 cmp ax, 0E8h   ; parse instruction type
@@ -479,7 +483,7 @@ Control_Flow_EA_Done:
                 je Call_Indirect_Far
                 cmp ecx, 100b
                 je Jmp_Indirect_Near
-                cmp ecx. 101b
+                cmp ecx, 101b
                 je Jmp_Indirect_Far
                 ret ; other instructions
 Call_Indirect_Near:
@@ -509,9 +513,9 @@ ControlTransfer_Done:
 ControlTransfer ENDP
 
 ; error case return address passed by ecx
+; flat ip in ebx
 ; success will use ret
 DataTransferMOV PROC
-                computeFlatIP ; in ebx
                 movzx eax, word ptr [ebx]
                 xor al, 10001000b
                 test al, 11111000b ; high 5 10001
@@ -653,6 +657,26 @@ DataTransferMOV PROC
 
 DataTransferMOV ENDP
 
+FlagInstruction PROC
+                mov al, byte ptr [ebx]
+                cmp al, 0F8h
+                je ProcessClc
+                cmp al, 0F9h
+                je ProcessStc
+                ret
+ProcessClc:     lahf
+                clc
+                sahf
+                jmp StcClcDone
+ProcessStc:     lahf
+                stc
+                sahf
+StcClcDone:     mov ax, [R_IP]
+                inc ax ; 1 byte long
+                mov R_IP, ax
+                ret
+FlagInstruction ENDP
+
 computeEffectiveAddressUnitTest MACRO
                 LOCAL callback, L1, L2, L3, L4, L5, L6
                 mov ebx, offset MEMO
@@ -702,6 +726,30 @@ computeEffectiveAddressUnitTest MACRO
                 INVOKE printf, offset debugMsg, offset MEMO, edx, esi, 0
                 ret
 ENDM
-run:
-                computeEffectiveAddressUnitTest
-end				run
+
+include term.asm
+include binloader.asm
+
+main PROC
+                INVOKE InitEmuScreen ; initialize terminal
+ExecLoop:
+                ; first, draw video memory
+                INVOKE WriteEmuScreen, ADDR [MEMO + 0b8000h]
+
+                ; execute next instruction
+                pushad
+
+                computeFlatIP
+                movzx eax, byte ptr [ebx]
+                cmp eax, 0F4h
+                je EmulatorHalt
+
+                ; TODO: fill instruction processing procedures here
+
+                popad
+
+EmulatorHalt:
+                INVOKE MessageBox, NULL, ADDR haltMsg, ADDR haltMsgTitle, MB_OK
+                INVOKE ExitProcess, 0
+main ENDP
+END main

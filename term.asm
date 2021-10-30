@@ -1,19 +1,5 @@
-.686
-.model flat, stdcall
-option casemap:none
-
-include windows.inc
-include kernel32.inc
-include user32.inc
-
-includelib user32.lib
-includelib kernel32.lib
-includelib msvcrt.lib
-printf          PROTO C :ptr byte, :VARARG
-
-.data
-    buf byte 80*25*2 dup(?)
-.code
+IFNDEF TERM_INC
+TERM_INC equ <1>
 
 InitEmuScreen PROC ; call this only once to initialize the emulator screen
 LOCAL hCon:dword, hWin:dword, termSize:COORD, rect:SMALL_RECT
@@ -76,54 +62,55 @@ _loop_end:
     ret
 WriteEmuScreen ENDP
 
-GenTest PROC USES ebx esi edi, mem:ptr byte ; generate example text
-LOCAL chr:byte, startChr:byte
-    count equ 80*25
-	mov esi, mem
-	mov ecx, 0
-    mov [startChr], 2fh
-_loop_gen:
-    cmp ecx, count
-    jae _loop_gen_end
-    mov edx, ecx
-    shr edx, 16 
-    movzx eax, cx ; prepare ecx in dx:ax
-    mov bx, 80   ; divide by 80 to get num of lines
-    div bx
-    cmp dx, 0
-    jne _not_first_col
-    mov al, [startChr]
-	inc al
-	cmp al, '9'
-	jbe _L0
-	mov al, '0'
-_L0:
-	mov [startChr], al
-    mov [chr], al
-_not_first_col:
-	mov al, [chr]
-	mov byte ptr [esi], al
-    inc al
-    cmp al, '9'
-    jbe _L1
-    mov al, '0'
-_L1:
-	mov [chr], al
-	mov byte ptr [esi+1], 10
-	add esi, 2
-    inc ecx
-	jmp _loop_gen
-_loop_gen_end:
-    ret
-GenTest ENDP
+; GenTest PROC USES ebx esi edi, mem:ptr byte ; generate example text
+; LOCAL chr:byte, startChr:byte
+;     count equ 80*25
+; 	mov esi, mem
+; 	mov ecx, 0
+;     mov [startChr], 2fh
+; _loop_gen:
+;     cmp ecx, count
+;     jae _loop_gen_end
+;     mov edx, ecx
+;     shr edx, 16 
+;     movzx eax, cx ; prepare ecx in dx:ax
+;     mov bx, 80   ; divide by 80 to get num of lines
+;     div bx
+;     cmp dx, 0
+;     jne _not_first_col
+;     mov al, [startChr]
+; 	inc al
+; 	cmp al, '9'
+; 	jbe _L0
+; 	mov al, '0'
+; _L0:
+; 	mov [startChr], al
+;     mov [chr], al
+; _not_first_col:
+; 	mov al, [chr]
+; 	mov byte ptr [esi], al
+;     inc al
+;     cmp al, '9'
+;     jbe _L1
+;     mov al, '0'
+; _L1:
+; 	mov [chr], al
+; 	mov byte ptr [esi+1], 10
+; 	add esi, 2
+;     inc ecx
+; 	jmp _loop_gen
+; _loop_gen_end:
+;     ret
+; GenTest ENDP
 
-_start PROC
-    INVOKE InitEmuScreen
-    INVOKE GenTest, ADDR buf
-    INVOKE WriteEmuScreen, ADDR buf
-    INVOKE Sleep, 5000
-_cleanup:
-    mov eax, 0
-    ret
-_start ENDP
-END _start
+; _start PROC
+;     INVOKE InitEmuScreen
+;     INVOKE GenTest, ADDR buf
+;     INVOKE WriteEmuScreen, ADDR buf
+;     INVOKE Sleep, 5000
+; _cleanup:
+;     mov eax, 0
+;     ret
+; _start ENDP
+; END _start
+ENDIF

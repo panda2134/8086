@@ -1,22 +1,3 @@
-.686
-.model flat, stdcall
-option casemap:none
-
-include windows.inc
-include kernel32.inc
-include user32.inc
-
-includelib user32.lib
-includelib kernel32.lib
-includelib msvcrt.lib
-printf          PROTO C :ptr byte, :VARARG
-
-.data
-    filename byte "./test_bin/c.img", 0
-.data?
-    memory byte 1048576 dup(?)
-.code
-
 ; we assume that the memory is of 1MB size, and code should be loaded at 7c0:0
 ; that is different from real 8086s which boot up from ffff:0
 ; however 7c0:0 is more convenient for our test binary
@@ -53,10 +34,10 @@ loadbin_error_ret:
     ret
 LoadBinaryIntoEmulator ENDP
 
-_start PROC
-    INVOKE LoadBinaryIntoEmulator, ADDR memory, ADDR filename
-_cleanup:
-    mov eax, 0
-    ret
-_start ENDP
-END _start
+; _start PROC
+;     INVOKE LoadBinaryIntoEmulator, ADDR memory, ADDR filename
+; _cleanup:
+;     mov eax, 0
+;     ret
+; _start ENDP
+; END _start
