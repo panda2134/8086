@@ -221,13 +221,15 @@ printloop:
 printchr:
 	push di
 	mov di, [cursor]
+    shl di, 1
+	mov si, ds
     push ax
     mov ax, 0xb800
-    mov es, ax
+	mov ds, ax
     pop ax
-    shl di, 1
-	mov es:[di], al
-    mov byte es:[di+1], 0x0F
+	mov [di], al
+    mov byte [di+1], 0x0F
+	mov ds, si
     shr di, 1
 	inc di
 	mov [cursor], di
