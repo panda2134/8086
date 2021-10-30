@@ -41,7 +41,8 @@ MEMO            byte 1048576 DUP(?)
 
 
 ; mod[2] xxx r/m[3] passed by ah, start of instruction(host) passed by ebx
-; not modified ah and ebx
+; when r/m is reg, need to pass word/byte in last bit of al
+; not modify al, ah and ebx
 ; effective address(host) returned by edx, end of displacement field(host) returned by esi
 computeEffectiveAddress MACRO LeaveLabel, DisableFallThroughLeave, SegmentType
                 ; MACRO local label
@@ -633,6 +634,11 @@ DataTransferStack PROC
                 xor al, 01010110b ; equiv to xor 00000110b at once
                 test al, 11100110b ; 000xx11x
                 jz SegmentRegister
+                xor al, 10001001b ; equiv to xor 10001111b at once
+                jz PopRegOrMem
+                xor al, 01110000b ; equiv to xor 11111111b at once
+                jz PushRegOrMem
+                jmp ecx
     Register:
                 add R_IP, 1
                 movzx esi, R_SP
@@ -676,6 +682,43 @@ DataTransferStack PROC
                 add R_SP, 2
                 mov word ptr REGS[ecx], ax
                 ret
+    PopRegOrMem:
+                test ah, 00111000b
+                jnz NotMatch
+
+                or al, 10000000b ; set flag for code reuse
+                jmp EA_Compute
+        PopRegOrMemEADone:
+                mov ax, word ptr MEMO[ebx + esi]
+                add R_SP, 2
+                mov word ptr [edx], ax
+                ret
+    PushRegOrMem:
+                xor ah, 00110000b
+                test ah, 00111000b
+                jnz NotMatch
+                
+                jmp EA_Compute
+        PushRegOrMemEADone:
+                mov ax, word ptr [edx]
+                sub R_SP, 2
+                mov word ptr MEMO[ebx + esi - 2], ax
+                ret
+    EA_Compute:
+                or al, 0001b ; set last bit indicate word register in r/m
+                computeEffectiveAddress EA_Done, 0, R_DS
+        EA_Done:
+                sub esi, ebx
+                add R_IP, si
+                movzx esi, R_SP
+                movzx ebx, R_SS
+                shl ebx, 4
+
+                test al, 10000000b
+                jz PushRegOrMemEADone
+                jmp PopRegOrMemEADone
+    NotMatch:
+                jmp ecx
 DataTransferStack ENDP
 
 FlagInstruction PROC
