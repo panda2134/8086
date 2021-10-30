@@ -7,7 +7,9 @@ printf          PROTO C :ptr byte, :VARARG
 
 .data
 haltMsgTitle    byte "Halted", 0
-haltMsg    byte "HLT is executed; since interrupt is not supported, the emulator will now exit.", 0
+haltMsg         byte "HLT is executed; since interrupt is not supported, the emulator will now exit.", 0
+UDMsgTitle      byte "Undefined Instruction", 0
+UDMsg           byte "Encountered an undefined instruction. (#UD)", 0
 debugMsg        byte "%d %d %d %d", 0AH, 0DH, 0
 invalidOpMsg    byte "Invalid Operation!", 0Dh, 0Ah, 0
 REGB            label byte
@@ -813,11 +815,29 @@ ExecLoop:       ; first, draw video memory
                 cmp eax, 0F4h
                 je EmulatorHalt
 
+                mov ecx, OFFSET ExecControl
                 INVOKE ArithLogic
+                jmp Executed
+ExecControl:    mov ecx, OFFSET ExecData
                 INVOKE ControlTransfer
+                jmp Executed
+ExecData:       mov ecx, OFFSET ExecFlag
                 INVOKE DataTransferMOV
+                jmp Executed
+ExecFlag:       mov ecx, OFFSET ExecPushPop
                 INVOKE FlagInstruction
-
+                jmp Executed
+ExecPushPop:    mov ecx, OFFSET ExecXchg
+                ; todo: invoke
+                jmp Executed
+ExecXchg:       mov ecx, OFFSET ExecUD
+                ; todo: invoke
+                jmp Executed
+ExecUD:         mov ecx, MB_ICONERROR
+                or ecx, MB_OK
+                INVOKE MessageBox, NULL, ADDR UDMsg, ADDR UDMsgTitle, ecx
+                add R_IP, 1 ; skip this opcode
+Executed:
                 popad
                 jmp ExecLoop
 
