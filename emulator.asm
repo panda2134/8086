@@ -62,12 +62,12 @@ pushEmulatorStack MACRO val
                 ENDIF
                 push eax
                 push ebx
-                mov ax, [R_SS]
-                mov bx, [R_SP]
-                sub bx, TYPE val
-                shl ax, 4
-                add ax, bx
-                and eax, 0FFFFH ; eax is new stack top in emulator
+                movzx eax, [R_SS]
+                movzx ebx, [R_SP]
+                sub ebx, TYPE val
+                shl eax, 4
+                add eax, ebx
+                and eax, 0FFFFFH ; eax is new stack top in emulator
                 mov R_SP, bx    ; write back new SP
                 mov MEMO[eax], val ; put onto stack
                 pop ebx
