@@ -690,7 +690,7 @@ ProcessClc:
                 clc
                 sahf
                 jmp StcClcDone
-ProcessStc:     
+        ProcessStc:     
                 lahf
                 stc
                 sahf
@@ -755,8 +755,11 @@ include binloader.asm
 
 main PROC
                 INVOKE InitEmuScreen ; initialize terminal
-ExecLoop:
-                ; first, draw video memory
+                lea edi, [MEMO + 0b8000h]
+                mov ecx, 80*25
+                mov ax, 0
+                repnz lodsw          ; clrscr
+ExecLoop:       ; first, draw video memory
                 INVOKE WriteEmuScreen, ADDR [MEMO + 0b8000h]
 
                 ; execute next instruction
@@ -767,9 +770,13 @@ ExecLoop:
                 cmp eax, 0F4h
                 je EmulatorHalt
 
-                ; TODO: fill instruction processing procedures here
+                INVOKE ArithLogic
+                INVOKE ControlTransfer
+                INVOKE DataTransferMOV
+                INVOKE FlagInstruction
 
                 popad
+                jmp ExecLoop
 
 EmulatorHalt:
                 INVOKE MessageBox, NULL, ADDR haltMsg, ADDR haltMsgTitle, MB_OK
