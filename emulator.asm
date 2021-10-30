@@ -306,7 +306,6 @@ ArithLogic PROC
 ArithLogic ENDP
 
 
-; origin pc pass in ebx, new pc return in edi
 ; NOTE: cs can be changed!
 ControlTransfer PROC
                 computeFlatIP
