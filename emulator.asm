@@ -752,44 +752,49 @@ StcClcDone:
 FlagInstruction ENDP
 
 XchgInstruction PROC
-                movzx eax, byte ptr [ebx]
-                cmp eax, 86h
-                je XchgRM8
-                cmp eax, 87h
-                je XchgRM16
-                cmp eax, 90h
-                jb ecx
-                cmp eax 97h
-                ja ecx
-XchgAX:         and eax, 111b
-                lea edi, REGW[eax*2]
-                mov ax, [R_AX]
-                xchg ax, word ptr [edi]
+                movzx eax, word ptr [ebx] ; read 2 byte at once, may exceed 1M, but we are in a emulator
+                xor al, 10000110b
+                test al, 11111110b
+                jz XchgRegOrMem
+                xor al, 00010110b ; equiv to xor 10010000b
+                test al, 11111000b
+                jz XchgAX
+                jmp ecx
+XchgAX:         
+                ; other bits in eax alread clear
                 add R_IP, 1
+                mov bx, R_AX
+                xchg bx, word ptr REGW[eax * 2]
+                mov R_AX, bx
                 ret
-XchgRM16:       mov ax, word ptr [ebx]
-                computeEffectiveAddress
-                shr ax, 8+3
-                and eax, 111b
-                lea edi, REGW[eax*2]
-                mov ax, [edi]
-                xchg ax, word ptr [edx]
-                jmp Xchg_UpdateIp
-XchgRM8:        mov ax, word ptr [ebx]
-                computeEffectiveAddress
-                shr ax, 8+2
-                and eax, 1110b
-                test eax, 1000b ; has high bit?
-                jz XchgRM8_Lower
-                or eax, 1
-XchgRM8_Lower:  and eax, 111b
-                lea edi, REGB[eax]
-                mov al, [edi]
-                xchg al, byte ptr [edx]
-Xchg_UpdateIp:  mov eax, esi
-                sub eax, ebx ; inst length
-                add R_IP, eax
+XchgRegOrMem:
+                computeEffectiveAddress XchgRegOrMemEADone, 0, R_DS
+XchgRegOrMemEADone:
+                sub esi, ebx
+                add R_IP, si
+                ; now ebx, esi free
+
+                shr ah, 2 ; not fully shift to eliminate index scaling
+                movzx ecx, ah ; 00 mod[2] reg[3] x, moved before jump to reuse code
+
+                test al, 0001b ; decide 16bit or 8bit register
+                jnz XchgRegOrMemWord
+                ; 8bit register
+                and ecx, 0110b ; ecx = 00 mod[2] reg[3] x ; 0,2,4,6 -> ACDB
+                movzx ebx, ah
+                and ebx, 1000b ; 0 -> L, 1 -> H
+                shr ebx, 3
+
+                mov al, byte ptr [edx]
+                xchg al, byte ptr REGB[ecx + ebx]
+                mov byte ptr [edx], al
                 ret
+XchgRegOrMemWord:
+                and ecx, 1110b
+                mov ax, word ptr [edx]
+                xchg ax, word ptr REGW[ecx]
+                mov word ptr [edx], ax
+
 XchgInstruction ENDP
 
 computeEffectiveAddressUnitTest MACRO
