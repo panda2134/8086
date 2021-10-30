@@ -815,25 +815,27 @@ ExecLoop:       ; first, draw video memory
                 cmp eax, 0F4h
                 je EmulatorHalt
 
+                push offset Executed
+
                 mov ecx, OFFSET ExecControl
-                INVOKE ArithLogic
-                jmp Executed
-ExecControl:    mov ecx, OFFSET ExecData
-                INVOKE ControlTransfer
-                jmp Executed
-ExecData:       mov ecx, OFFSET ExecFlag
-                INVOKE DataTransferMOV
-                jmp Executed
-ExecFlag:       mov ecx, OFFSET ExecPushPop
-                INVOKE FlagInstruction
-                jmp Executed
-ExecPushPop:    mov ecx, OFFSET ExecXchg
-                ; todo: invoke
-                jmp Executed
-ExecXchg:       mov ecx, OFFSET ExecUD
-                ; todo: invoke
-                jmp Executed
-ExecUD:         mov ecx, MB_ICONERROR
+                jmp ArithLogic
+ExecControl:    
+                mov ecx, OFFSET ExecData
+                jmp ControlTransfer
+ExecData:       
+                mov ecx, OFFSET ExecFlag
+                jmp DataTransferMOV
+ExecFlag:       
+                mov ecx, OFFSET ExecPushPop
+                jmp FlagInstruction
+ExecPushPop:    
+                mov ecx, OFFSET ExecXchg
+                jmp DataTransferStack
+ExecXchg:       
+                mov ecx, OFFSET ExecUD
+                ; todo: jmp xchg
+ExecUD:         
+                mov ecx, MB_ICONERROR
                 or ecx, MB_OK
                 INVOKE MessageBox, NULL, ADDR UDMsg, ADDR UDMsgTitle, ecx
                 add R_IP, 1 ; skip this opcode
