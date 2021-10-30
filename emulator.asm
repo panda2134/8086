@@ -130,7 +130,7 @@ ENDM
 computeFlatIP MACRO
                 movzx eax, R_CS
                 movzx ebx, R_IP
-                lea ebx, [ebx + eax * 4]
+                lea ebx, [ebx + eax * 16]
 ENDM
 
 ; error case return address passed by ecx
