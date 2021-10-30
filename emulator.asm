@@ -35,54 +35,11 @@ MEMO_Guard      byte 00FFH
 
 .code
 
-pushEmulatorStack MACRO val
-                IFIDNI <val>, <ax>
-                    ECHO Error: cannot use the given reg here
-                    EXITM
-                ENDIF
-                IFIDNI <val>, <bx>
-                    ECHO Error: cannot use the given reg here
-                    EXITM
-                ENDIF
-                
-                IFIDNI <val>, <ah>
-                    ECHO Error: cannot use the given reg here
-                    EXITM
-                ENDIF
-                IFIDNI <val>, <bh>
-                    ECHO Error: cannot use the given reg here
-                    EXITM
-                ENDIF
-                
-                IFIDNI <val>, <al>
-                    ECHO Error: cannot use the given reg here
-                    EXITM
-                ENDIF
-                IFIDNI <val>, <bl>
-                    ECHO Error: cannot use the given reg here
-                    EXITM
-                ENDIF
-                push eax
-                push ebx
-                movzx eax, [R_SS]
-                movzx ebx, [R_SP]
-                sub ebx, TYPE val
-                shl eax, 4
-                add eax, ebx
-                and eax, 0FFFFFH ; eax is new stack top in emulator
-                mov R_SP, bx    ; write back new SP
-                mov MEMO[eax], val ; put onto stack
-                pop ebx
-                pop eax
-pushEmulatorStack ENDM
 
 ; mod[2] xxx r/m[3] passed by ah, start of instruction(host) passed by ebx
 ; not modified ah and ebx
 ; effective address(host) returned by edx, end of displacement field(host) returned by esi
 computeEffectiveAddress MACRO LeaveLabel, DisableFallThroughLeave, SegmentType
-                IFB <SegmentType>
-                    SegmentType EQU R_DS
-                ENDIF
                 ; MACRO local label
                 LOCAL NoDisplacement, MOD123, MOD23, RM_Decode, RM_Is1XX, RM_Is11X, AddDisplacment, MOD3, RM_IsWordReg
                 ; ah already = mod[2] reg[3] r/m[3] or mod[2] op[3] r/m[3]
@@ -169,7 +126,7 @@ computeEffectiveAddress MACRO LeaveLabel, DisableFallThroughLeave, SegmentType
                 lea edx, REGW[ecx * 2] ; register host address now in edx
                 ; fall-through
     IF DisableFallThroughLeave
-                    jmp LeaveLabel
+                jmp LeaveLabel
     ENDIF
 ENDM
 
@@ -205,7 +162,7 @@ ArithLogic PROC
                 jmp Operand
     ImmWithRegOrMem:
     RegWithRegOrMem:
-                computeEffectiveAddress SrcIsRegOrImm, 0
+                computeEffectiveAddress SrcIsRegOrImm, 0, R_DS
     SrcIsRegOrImm: ; not real src, d[1] decide real src
                 mov edi, esi ; copy "end of displacement(host)" for delta ip
                 sub edi, ebx ; compute delta ip, not yet count imm data
@@ -342,121 +299,123 @@ ArithLogic PROC
 ArithLogic ENDP
 
 ; uses ah
-GenerateJmpConditional MACRO inst
+GenerateJmpConditional MACRO jmp_cc
                 mov ah, R_FLAGS
                 sahf
-                inst Jmp_Short_Rel8
+                jmp_cc Jmp_Short_Rel8
                 jmp ControlTransfer_Done
 ENDM
 
 ; NOTE: cs can be changed!
+; error case return address passed by ecx
+; success will use ret
 ControlTransfer PROC
                 computeFlatIP
-                movzx eax, byte ptr [ebx] ; read 1 byte into ax, and check type of instruction
-
-                cmp ax, 0E8h   ; parse instruction type
+                movzx eax, word ptr [ebx] ; read 2 byte at once, may exceed 1M, but we are in a emulator
+                cmp al, 0E8h   ; parse instruction type
                 je Call_Direct_Near
-                cmp ax, 09Ah
+                cmp al, 09Ah
                 je Call_Direct_Far
-                cmp ax, 0FFh
+                cmp al, 0FFh
                 je Call_Jmp_Indirect
-                cmp ax, 0EBh
+                cmp al, 0EBh
                 je Jmp_Short_Rel8
-                cmp ax, 0E9h
+                cmp al, 0E9h
                 je Jmp_Near_Rel16
-                cmp ax, 0EAh
-                je Jmp_Direct_Far
-                cmp ah, 7
-                je Jmp_Conditional
-                ret ; other instructions
-Jmp_Conditional:
-                FOR x,<70h,71h,72h,73h,74h,75h,76h,77h,78h,79h,7ah,7bh,7ch,7dh,7eh,7fh>
-                        cmp ax, x
-                        je Jmp&x
-                ENDM
+                cmp al, 0EAh
+                je Jmp_Direct_Far 
+    FOR x, <70h,71h,72h,73h,74h,75h,76h,77h,78h,79h,7ah,7bh,7ch,7dh,7eh,7fh> ; conditional jmp
+                cmp al, x
+                je Jmp&x
+    ENDM
+                jmp ecx ; other instructions
 
-Jmp70h:         GenerateJmpConditional jo
-Jmp71h:         GenerateJmpConditional jno
-Jmp72h:         GenerateJmpConditional jb
-Jmp73h:         GenerateJmpConditional jae
-Jmp74h:         GenerateJmpConditional je
-Jmp75h:         GenerateJmpConditional jne
-Jmp76h:         GenerateJmpConditional jbe
-Jmp77h:         GenerateJmpConditional ja
-Jmp78h:         GenerateJmpConditional js
-Jmp79h:         GenerateJmpConditional jns
-Jmp7ah:         GenerateJmpConditional jpe
-Jmp7bh:         GenerateJmpConditional jpo
-Jmp7ch:         GenerateJmpConditional jl
-Jmp7dh:         GenerateJmpConditional jge
-Jmp7eh:         GenerateJmpConditional jle
-Jmp7fh:         GenerateJmpConditional jg
+    Jmp70h:     GenerateJmpConditional jo
+    Jmp71h:     GenerateJmpConditional jno
+    Jmp72h:     GenerateJmpConditional jb
+    Jmp73h:     GenerateJmpConditional jae
+    Jmp74h:     GenerateJmpConditional je
+    Jmp75h:     GenerateJmpConditional jne
+    Jmp76h:     GenerateJmpConditional jbe
+    Jmp77h:     GenerateJmpConditional ja
+    Jmp78h:     GenerateJmpConditional js
+    Jmp79h:     GenerateJmpConditional jns
+    Jmp7ah:     GenerateJmpConditional jpe
+    Jmp7bh:     GenerateJmpConditional jpo
+    Jmp7ch:     GenerateJmpConditional jl
+    Jmp7dh:     GenerateJmpConditional jge
+    Jmp7eh:     GenerateJmpConditional jle
+    Jmp7fh:     GenerateJmpConditional jg
 
 Jmp_Short_Rel8:
-                movsx di, byte ptr [ebx + 1]
-                add R_IP, di ; ip += rel8 sign extended to 16bit
-                add R_IP, 2  ; next instruction -> +2
+                movsx di, ah
+                add di, 2 ; instruction length = 2 bytes
+                add R_IP, di ; ip += rel8 sign extended to 16bit (relative to next instruction)
                 jmp ControlTransfer_Done
 Call_Direct_Near:
-                ; first, push rtn addr (16bit) into stack
-                ; todo: exception when edx < 2
-                mov cx, R_IP
-                add cx, 3 ; instruction length = 3 bytes
-                pushEmulatorStack cx
+                lea edx, [ebx + 1]
+                lea esi, [ebx + 3]
+                jmp Call_Indirect_Near ; reuse code
 Jmp_Near_Rel16:
-                mov R_IP, cx ; now ip points to the next instruction
-                ; then retrieve displacement
-                mov di, word ptr [ebx + 1]
+                ; not reuse code
                 ; ip += displacement
-                add R_IP, di
+                add si, word ptr [ebx + 1]
+                mov R_IP, si ; write back
                 jmp ControlTransfer_Done
 Call_Direct_Far:
-                ; push cs, then push rtn addr
-                mov cx, R_CS
-                pushEmulatorStack cx
-                mov cx, R_IP
-                add cx, 5
-                pushEmulatorStack cx
+                lea edx, [ebx + 1]
+                lea esi, [ebx + 5]
+                jmp Call_Indirect_Far ; reuse code
 Jmp_Direct_Far:
-                ; retrieve new disp and cs
-                mov ecx, dword ptr [ebx + 1]
-                ; ip := displacement; change cs
-                mov R_IP, cx
-                shr ecx, 16
-                mov R_CS, cx
-                jmp ControlTransfer_Done
+                lea edx, [ebx + 1]
+                lea esi, [ebx + 5]
+                jmp Jmp_Indirect_Far ; reuse code
 Call_Jmp_Indirect:
-                mov ah, byte ptr [ebx + 1]
-                computeEffectiveAddress Control_Flow_EA_Done, 1
+                push ecx ; error case ret addr
+                computeEffectiveAddress Control_Flow_EA_Done, 0, R_DS
+                ; fall-through
 Control_Flow_EA_Done:
-                movzx ecx, ah
-                shr ecx, 3
-                and ecx, 111b
-                cmp ecx, 010b ; check for xx010xxx
+                pop ecx
+                movzx edi, ah
+                shr edi, 3
+                and edi, 111b
+                cmp edi, 010b ; check for xx010xxx
                 je Call_Indirect_Near
-                cmp ecx, 011b ; check for xx011xxx
+                cmp edi, 011b ; check for xx011xxx
                 je Call_Indirect_Far
-                cmp ecx, 100b
+                cmp edi, 100b
                 je Jmp_Indirect_Near
-                cmp ecx. 101b
+                cmp edi, 101b
                 je Jmp_Indirect_Far
-                ret ; other instructions
+                jmp ecx ; other instructions
 Call_Indirect_Near:
-                mov ecx, esi
-                sub ecx, ebx ; esi-ebx is command length
-                add cx, R_IP ; add to R_IP to get offset of next instruction
-                pushEmulatorStack cx ; push return address
+                movzx edx, R_SP
+                movzx ecx, R_SS
+                sub R_SP, 2 ; write after read to avoid stall
+                shl ecx, 4
+
+                sub esi, ebx ; esi-ebx is command length
+                add si, R_IP ; add to R_IP to get offset of next instruction
+                mov word ptr MEMO[edx + ecx - 2], si
+                ; fall-through
 Jmp_Indirect_Near:
                 mov cx, word ptr [edx] ; load offset into cx
                 mov R_IP, cx ; write back new ip
                 jmp ControlTransfer_Done
 Call_Indirect_Far:
-                mov cx, R_CS
-                pushEmulatorStack cx
-                mov ecx, esi
-                sub ecx, ebx
-                add cx, R_IP
-                pushEmulatorStack cx
+                ; push cs, then push ip
+                movzx edx, R_SP
+                movzx ecx, R_SS
+                sub R_SP, 4 ; write after read to avoid stall
+                shl ecx, 4
+
+                lea edx, MEMO[edx + ecx - 2]
+                mov di, R_CS
+                mov word ptr [edx], di
+                sub esi, ebx ; esi-ebx is command length
+                add si, R_IP ; add to R_IP to get offset of next instruction
+                mov word ptr [edx - 2], si
+                ; fall-through
 Jmp_Indirect_Far:
                 mov ecx, dword ptr [edx]
                 mov R_IP, cx
@@ -488,7 +447,7 @@ DataTransferMOV PROC
     ImmToRegOrMem:
                 or al, 10000000b ; set flag to reuse code, repeat macro maybe a little faster
     RegWithRegOrMem:
-                computeEffectiveAddress SrcIsRegOrImm, 0
+                computeEffectiveAddress SrcIsRegOrImm, 0, R_DS
     SrcIsRegOrImm: ; not real src, d[1] decide real src
                 test al, 10000000b ; test flag
                 jnz SrcIsImm
@@ -573,7 +532,7 @@ DataTransferMOV PROC
                 movzx ebx, al
                 and ebx, 0100b
                 shr ebx, 2
-                mov byte ptr REGB[ecx * 2 + ebx], 
+                mov byte ptr REGB[ecx * 2 + ebx], ah
                 ret
     WordImmToReg:
                 add R_IP, 3
@@ -619,21 +578,21 @@ computeEffectiveAddressUnitTest MACRO
                 mov byte ptr [ebx + 3], 1
                 mov ah, 00000110b
                 push offset L1
-                computeEffectiveAddress callback, 1
+                computeEffectiveAddress callback, 1, R_DS
     L1:
                 mov ebx, offset MEMO
                 mov byte ptr [ebx + 2], 10
                 mov byte ptr [ebx + 3], 0
                 mov ah, 00000110b
                 push offset L2
-                computeEffectiveAddress callback, 1
+                computeEffectiveAddress callback, 1, R_DS
     L2:
                 mov ebx, offset MEMO
                 mov ah, 00000000b
                 mov R_BX, 4
                 mov R_SI, 3
                 push offset L3
-                computeEffectiveAddress callback, 1
+                computeEffectiveAddress callback, 1, R_DS
     L3:
                 mov ebx, offset MEMO
                 mov ah, 10000000b
@@ -642,25 +601,26 @@ computeEffectiveAddressUnitTest MACRO
                 mov R_BX, 4
                 mov R_SI, 3
                 push offset L4
-                computeEffectiveAddress callback, 1
+                computeEffectiveAddress callback, 1, R_DS
     L4:
                 mov ebx, offset MEMO
                 mov ah, 00000101b
                 mov R_DI, 5
                 push offset L5
-                computeEffectiveAddress callback, 1
+                computeEffectiveAddress callback, 1, R_DS
     L5:
                 mov ebx, offset MEMO
                 mov ah, 00000111b
                 mov R_BP, 9
                 push offset L6
-                computeEffectiveAddress callback, 1
+                computeEffectiveAddress callback, 1, R_DS
     L6:
                 ret
     callback:
                 INVOKE printf, offset debugMsg, offset MEMO, edx, esi, 0
                 ret
 ENDM
+
 run:
                 computeEffectiveAddressUnitTest
 end				run
