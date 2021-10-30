@@ -51,25 +51,25 @@ computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
                 lea esi, [ebx + 4] ; End of displacement
                 xor edx, edx ; clear edx for displacement only
                 jmp AddDisplacment
-NoDisplacement:
+    NoDisplacement:
                 xor edi, edi ; common case, no displacement
                 lea esi, [ebx + 2] ; End of displacement
                 jmp RM_Decode
-MOD123:
+    MOD123:
                 cmp cl, 1
                 jne MOD23
                 ; mod = 01
                 movzx edi, byte ptr [ebx + 2] ; 8bit displacement
                 lea esi, [ebx + 3] ; End of displacement
                 jmp RM_Decode
-MOD23:
+    MOD23:
                 cmp cl, 2
                 jne MOD3
                 ; mod = 10
                 movzx edi, word ptr [ebx + 2] ; 16bit displacement
                 lea esi, [ebx + 4] ; End of displacement
                 ; fall-through
-RM_Decode:
+    RM_Decode:
                 ; displacement in edi
                 movzx ecx, ah ; mod[2] reg[3] r/m[3]
                 test ecx, 0100b
@@ -82,26 +82,26 @@ RM_Decode:
                 movzx ecx, word ptr R_SI[ecx * 2]
                 add edx, ecx
                 jmp AddDisplacment
-RM_Is1XX:
+    RM_Is1XX:
                 test ecx, 0010b
                 jnz RM_Is11X
                 ; r/m = 10x
                 and ecx, 0001b ; Index = i ? DI : SI, R_DI = R_SI + 4
                 movzx edx, word ptr R_SI[ecx * 2]
                 jmp AddDisplacment
-RM_Is11X:
+    RM_Is11X:
                 ; r/m = 11x
                 and ecx, 0001b ; Base = b ? BP : BX, R_BP = R_BX + 4
                 movzx edx, word ptr R_BX[ecx * 4]
                 ; fall-through
-AddDisplacment:
+    AddDisplacment:
                 add edx, edi ; (virtual) effective address now in edx
                 ; now edi free
                 add edx, offset MEMO
                 movzx ecx, R_DS ; (virtual) data segment, may be override, TODO
                 add edx, ecx
                 jmp LeaveLabel
-MOD3:
+    MOD3:
                 ; r/m = register
                 lea esi, [ebx + 2] ; End of displacement (No Displacement)
                 ; now ebx free
@@ -116,14 +116,14 @@ MOD3:
                 shr ecx, 2
                 add edx, ecx ; register "address" now in edx
                 jmp LeaveLabel
-RM_IsWordReg:
+    RM_IsWordReg:
                 ; 16bit register
                 and ecx, 0111b
                 lea edx, REGW[ecx * 2] ; register "address" now in edx
                 ; fall-through
-IF DisableFallThroghLeave
-                jmp LeaveLabel
-ENDIF
+    IF DisableFallThroghLeave
+                    jmp LeaveLabel
+    ENDIF
 ENDM
 
 ; use eax
@@ -145,7 +145,7 @@ ArithLogic PROC
                 test eax, 11000010b
                 jz ImmToAcc; must be 00xxx10x(with test 11000100b not zero), Imm to accumulator Op
                 jmp ecx; Other Instructions
-ImmToAcc:
+    ImmToAcc:
                 xor ecx, ecx
                 test al, 0001b
                 setnz cl
@@ -155,10 +155,10 @@ ImmToAcc:
                 ; now ebx free
                 movzx ebx, al ; first byte contains op[3]
                 jmp Operand
-ImmWithRegOrMem:
-RegWithRegOrMem:
+    ImmWithRegOrMem:
+    RegWithRegOrMem:
                 computeEffectiveAddress SrcIsRegOrImm, 0
-SrcIsRegOrImm:
+    SrcIsRegOrImm:
                 mov edi, esi; save "End of displacement" for new ip
                 test al, 10000000b ; first byte still in al
                 jnz SrcIsImm
@@ -176,12 +176,12 @@ SrcIsRegOrImm:
                 shr ecx, 2
                 add esi, ecx ; reg register "address" now in esi
                 jmp SRC_DEST ; first byte still in al
-REG_IsWordReg:
+    REG_IsWordReg:
                 ; 16bit register
                 and ecx, 0111b
                 lea esi, REGW[ecx * 2] ; reg register "address" now in esi
                 jmp SRC_DEST ; first byte still in al
-SrcIsImm:
+    SrcIsImm:
                 movzx ebx, ah ; second byte contains op[3]
                 ; compute new ip
                 xor ecx, ecx
@@ -193,7 +193,7 @@ SrcIsImm:
                 movzx ecx, word ptr R_CS
                 add esi, ecx
                 jmp SRC_DEST ; first byte still in al
-SRC_DEST:
+    SRC_DEST:
                 ; first byte still in al
                 test al, 10000000b;
                 jnz Operand ; Imm to r/m, no need to exchange
@@ -201,7 +201,7 @@ SRC_DEST:
                 jz Operand ; d = 0 no need to exchange
                 xchg esi, edx ; put src in esi and dest in edx, for sub/sbb/cmp and write back
                 ; fall-through
-Operand:           
+    Operand:           
                 ; first byte still in al
                 test al, 0001b ; decide 8bit or 16bit operand
                 jnz OperandW ; word operand
@@ -213,7 +213,7 @@ Operand:
                 and ebx, 00111000b ; xx op[3] xxx, select bits, clear others
                 ; Not shift, eliminate index * 8 for OpTable
                 jmp dword ptr [OpTable + ebx]
-OperandW:
+    OperandW:
                 ; first byte still in al
                 movzx ecx, word ptr [edx]; only use cx
                 test al, 10000000b
@@ -222,14 +222,14 @@ OperandW:
                 jz NotSignExt
                 movsx si, byte ptr [esi] ; src operand, no need to preserve its addr
                 jmp OperandWExec
-NotSignExt:
+    NotSignExt:
                 mov si, word ptr [esi]
                 ; fall-through
-OperandWExec:
+    OperandWExec:
                 and ebx, 00111000b ; xx op[3] xxx, select bits, clear others
                 ; Not shift, eliminate index * 8 for OpTable
                 jmp dword ptr [OpTable + 4 + ebx]
-OpTable:
+    OpTable:
                 ; could store diff to some near Anchor(e.g. OpTable) to save space
                 ; but we use a straightforward method
                 dword B_ADD, W_ADD
@@ -240,61 +240,63 @@ OpTable:
                 dword B_SUB, W_SUB
                 dword B_XOR, W_XOR
                 dword B_CMP, W_CMP
-B_CMP:
+    ByteOp:
+        B_CMP:
                 cmp cl, ch
                 jmp WriteFlags
-B_XOR:
+        B_XOR:
                 xor cl, ch
                 jmp WriteBackB
-B_SUB:
+        B_SUB:
                 sub cl, ch
                 jmp WriteBackB
-B_AND:
+        B_AND:
                 and cl, ch
                 jmp WriteBackB
-B_SBB:
+        B_SBB:
                 sbb cl, ch
                 jmp WriteBackB
-B_ADC:
+        B_ADC:
                 adc cl, ch
                 jmp WriteBackB      
-B_OR:
+        B_OR:
                 or cl, ch
                 jmp WriteBackB
-B_ADD:
+        B_ADD:
                 add cl, ch
                 ; fall-through
-WriteBackB:
+    WriteBackB:
                 mov byte ptr [edx], cl
                 jmp WriteFlags
-W_CMP:
+    WordOp:
+        W_CMP:
                 cmp cx, si
                 jmp WriteFlags
-W_XOR:
+        W_XOR:
                 xor cx, si
                 jmp WriteBackW
-W_SUB:
+        W_SUB:
                 sub cx, si
                 jmp WriteBackW
-W_AND:
+        W_AND:
                 and cx, si
                 jmp WriteBackW
-W_SBB:
+        W_SBB:
                 sbb cx, si
                 jmp WriteBackW
-W_ADC:
+        W_ADC:
                 adc cx, si
                 jmp WriteBackW
-W_OR:
+        W_OR:
                 or cx, si
                 jmp WriteBackW
-W_ADD:
+        W_ADD:
                 add cx, si
                 ; fall-through
-WriteBackW:
+    WriteBackW:
                 mov word ptr [edx], cx
                 ; fall-through
-WriteFlags:
+    WriteFlags:
                 lahf ; load flags into ah
                 mov R_FLAGS, ah
                 computeFlatIP
@@ -373,21 +375,21 @@ computeEffectiveAddressUnitTest MACRO
                 mov ah, 00000110b
                 push offset L1
                 computeEffectiveAddress callback, 1
-L1:
+    L1:
                 mov ebx, offset MEMO
                 mov byte ptr [ebx + 2], 10
                 mov byte ptr [ebx + 3], 0
                 mov ah, 00000110b
                 push offset L2
                 computeEffectiveAddress callback, 1
-L2:
+    L2:
                 mov ebx, offset MEMO
                 mov ah, 00000000b
                 mov R_BX, 4
                 mov R_SI, 3
                 push offset L3
                 computeEffectiveAddress callback, 1
-L3:
+    L3:
                 mov ebx, offset MEMO
                 mov ah, 10000000b
                 mov byte ptr [ebx + 2], 10
@@ -396,21 +398,21 @@ L3:
                 mov R_SI, 3
                 push offset L4
                 computeEffectiveAddress callback, 1
-L4:
+    L4:
                 mov ebx, offset MEMO
                 mov ah, 00000101b
                 mov R_DI, 5
                 push offset L5
                 computeEffectiveAddress callback, 1
-L5:
+    L5:
                 mov ebx, offset MEMO
                 mov ah, 00000111b
                 mov R_BP, 9
                 push offset L6
                 computeEffectiveAddress callback, 1
-L6:
+    L6:
                 ret
-callback:
+    callback:
                 INVOKE printf, offset debugMsg, offset MEMO, edx, esi, 0
                 ret
 ENDM
