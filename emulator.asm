@@ -307,7 +307,7 @@ GenerateJmpConditional MACRO jmp_cc
                 mov ah, R_FLAGS
                 sahf
                 jmp_cc Jmp_Short_Rel8
-                jmp ControlTransfer_Done
+                ret
 ENDM
 
 ; flat ip in ebx
@@ -315,7 +315,6 @@ ENDM
 ; error case return address passed by ecx
 ; success will use ret
 ControlTransfer PROC
-                computeFlatIP
                 movzx eax, word ptr [ebx] ; read 2 byte at once, may exceed 1M, but we are in a emulator
                 cmp al, 0E8h   ; parse instruction type
                 je Call_Direct_Near
@@ -370,7 +369,7 @@ ControlTransfer PROC
                 movsx di, ah
                 add di, 2 ; instruction length = 2 bytes
                 add R_IP, di ; ip += rel8 sign extended to 16bit (relative to next instruction)
-                jmp ControlTransfer_Done
+                ret
     Call_Direct_Near: ; near direct is ip relative, cannot reuse indirect code
                 movzx edx, R_SP
                 movzx ecx, R_SS
@@ -382,14 +381,14 @@ ControlTransfer PROC
                 mov word ptr MEMO[edx + ecx - 2], si
                 add si, word ptr [ebx + 1]
                 mov R_IP, si ; write back
-                jmp ControlTransfer_Done
+                ret
     Jmp_Near_Rel16:
                 ; ip += displacement
                 mov si, R_IP
                 add si, 3
                 add si, word ptr [ebx + 1]
                 mov R_IP, si ; write back
-                jmp ControlTransfer_Done
+                ret
     Call_Direct_Far:
                 lea edx, [ebx + 1]
                 lea esi, [ebx + 5]
@@ -429,7 +428,8 @@ ControlTransfer PROC
     Jmp_Indirect_Near:
                 mov ax, word ptr [edx] ; load offset into cx
                 mov R_IP, ax ; write back new ip
-                jmp ControlTransfer_Done
+                ret
+
     Call_Indirect_Far:
                 ; push cs, then push ip
                 movzx edx, R_SP
@@ -449,7 +449,7 @@ ControlTransfer PROC
                 mov R_IP, ax
                 shr eax, 16
                 mov R_CS, ax
-                jmp ControlTransfer_Done
+                ret
 
     Ret_Near:       
                 movzx edx, R_SP
@@ -460,7 +460,7 @@ ControlTransfer PROC
                 mov R_IP, ax
                 add di, 2 ; pop n + 2 byte
                 add R_SP, di
-                jmp ControlTransfer_Done
+                ret
     Ret_Far:
                 movzx edx, R_SP
                 movzx ecx, R_SS
@@ -474,8 +474,6 @@ ControlTransfer PROC
                 mov R_IP, ax
                 add di, 4 ; pop n + 4 byte
                 add R_SP, di
-                jmp ControlTransfer_Done
-ControlTransfer_Done:
                 ret
 ControlTransfer ENDP
 
@@ -483,7 +481,7 @@ ControlTransfer ENDP
 ; flat ip in ebx
 ; success will use ret
 DataTransferMOV PROC
-                movzx eax, word ptr [ebx]
+                movzx eax, word ptr [ebx] ; read 2 byte at once, may exceed 1M, but we are in a emulator
                 xor al, 10001000b
                 test al, 11111000b ; high 5 10001
                 jz RegWithRegOrMem; 10001xxx
@@ -624,13 +622,69 @@ DataTransferMOV PROC
 
 DataTransferMOV ENDP
 
+; error case return address passed by ecx
+; flat ip in ebx
+; success will use ret
+DataTransferStack PROC
+                movzx eax, word ptr [ebx] ; read 2 byte at once, may exceed 1M, but we are in a emulator
+                xor al, 01010000b
+                test al, 11110000b ; high 4 0101
+                jz Register ; 0101xxxx
+                xor al, 01010110b ; equiv to xor 00000110b at once
+                test al, 11100110b ; 000xx11x
+                jz SegmentRegister
+    Register:
+                add R_IP, 1
+                movzx esi, R_SP
+                movzx ebx, R_SS
+                shl ebx, 4
+
+                movzx ecx, al
+                and ecx, 0111b
+                test al, 1000b
+                jnz PopRegister
+                ; push
+                mov ax, word ptr REGW[ecx * 2]
+                sub R_SP, 2 ; push word
+                mov word ptr MEMO[ebx + esi - 2], ax
+                ret
+    PopRegister:
+                ; pop
+                mov ax, word ptr MEMO[ebx + esi]
+                add R_SP, 2 ; pop word
+                mov word ptr REGW[ecx * 2], ax
+                ret
+    SegmentRegister:
+                add R_IP, 1
+                movzx esi, R_SP
+                movzx ebx, R_SS
+                shl ebx, 4
+
+                movzx ecx, al
+                and ecx, 00011000b
+                shr ecx, 2 ; not fully shift
+                test al, 0001b
+                jnz PopSegmentRegister
+                ; push
+                mov ax, word ptr REGS[ecx]
+                sub R_SP, 2
+                mov word ptr MEMO[ebx + esi - 2], ax
+                ret
+    PopSegmentRegister:
+                ; pop
+                mov ax, word ptr MEMO[ebx + esi]
+                add R_SP, 2
+                mov word ptr REGS[ecx], ax
+                ret
+DataTransferStack ENDP
+
 FlagInstruction PROC
                 mov al, byte ptr [ebx]
                 cmp al, 0F8h
                 je ProcessClc
                 cmp al, 0F9h
                 je ProcessStc
-                ret
+                jmp ecx
 ProcessClc:     
                 lahf
                 clc
@@ -640,10 +694,9 @@ ProcessStc:
                 lahf
                 stc
                 sahf
+                ; fall through
 StcClcDone:     
-                mov ax, [R_IP]
-                inc ax ; 1 byte long
-                mov R_IP, ax
+                add R_IP, 1 ; 1 byte long
                 ret
 FlagInstruction ENDP
 
@@ -721,5 +774,6 @@ ExecLoop:
 EmulatorHalt:
                 INVOKE MessageBox, NULL, ADDR haltMsg, ADDR haltMsgTitle, MB_OK
                 INVOKE ExitProcess, 0
+                ret
 main ENDP
 END main
