@@ -32,9 +32,9 @@ MEMO            byte 1048576 DUP(?)
 MEMO_Guard      byte 00FFH
 
 .code
-; mod[2] xxx r/m[3] passed by ah, start of instruction passed by ebx
-; not modified ah and ah
-; effective address returned by edx, end of displacement returned by esi
+; mod[2] xxx r/m[3] passed by ah, start of instruction(host) passed by ebx
+; not modified ah and ebx
+; effective address(host) returned by edx, end of displacement field(host) returned by esi
 computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
                 ; MACRO local label
                 LOCAL NoDisplacement, MOD123, MOD23, RM_Decode, RM_Is1XX, RM_Is11X, AddDisplacment, MOD3, RM_IsWordReg
@@ -49,26 +49,26 @@ computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
                 jne NoDisplacement
                 ; r/m = 110 special case, 16bit displacement only
                 movzx edi, word ptr [ebx + 2]
-                lea esi, [ebx + 4] ; End of displacement
+                lea esi, [ebx + 4] ; end of displacement field(host)
                 xor edx, edx ; clear edx for displacement only
                 jmp AddDisplacment
     NoDisplacement:
                 xor edi, edi ; common case, no displacement
-                lea esi, [ebx + 2] ; End of displacement
+                lea esi, [ebx + 2] ; end of displacement field(host)
                 jmp RM_Decode
     MOD123:
                 cmp cl, 1
                 jne MOD23
                 ; mod = 01
                 movzx edi, byte ptr [ebx + 2] ; 8bit displacement
-                lea esi, [ebx + 3] ; End of displacement
+                lea esi, [ebx + 3] ; end of displacement field(host)
                 jmp RM_Decode
     MOD23:
                 cmp cl, 2
                 jne MOD3
                 ; mod = 10
                 movzx edi, word ptr [ebx + 2] ; 16bit displacement
-                lea esi, [ebx + 4] ; End of displacement
+                lea esi, [ebx + 4] ; end of displacement field(host)
                 ; fall-through
     RM_Decode:
                 ; displacement in edi
@@ -96,11 +96,11 @@ computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
                 movzx edx, word ptr R_BX[ecx * 4]
                 ; fall-through
     AddDisplacment:
-                add edx, edi ; (virtual) effective address now in edx
+                add edx, edi ; effective address(virtual) now in edx
                 ; now edi free
-                add edx, offset MEMO
-                movzx ecx, R_DS ; (virtual) data segment, may be override, TODO
-                add edx, ecx
+                movzx ecx, R_DS ; data segment, may be override, TODO
+                shl ecx, 4
+                lea edx, MEMO[edx + ecx] ; effective address(host)
                 jmp LeaveLabel
     MOD3:
                 ; r/m = register
@@ -114,12 +114,12 @@ computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
                 movzx ecx, ah
                 and ecx, 0100b ; 0 -> L, 1 -> H
                 shr ecx, 2
-                add edx, ecx ; register "address" now in edx
+                add edx, ecx ; register host address now in edx
                 jmp LeaveLabel
     RM_IsWordReg:
                 ; 16bit register
                 and ecx, 0111b
-                lea edx, REGW[ecx * 2] ; register "address" now in edx
+                lea edx, REGW[ecx * 2] ; register host address now in edx
                 ; fall-through
     IF DisableFallThroghLeave
                     jmp LeaveLabel
@@ -160,7 +160,7 @@ ArithLogic PROC
     RegWithRegOrMem:
                 computeEffectiveAddress SrcIsRegOrImm, 0
     SrcIsRegOrImm:
-                mov edi, esi ; copy "End of displacement" for delta ip
+                mov edi, esi ; copy "end of displacement(host)" for delta ip
                 sub edi, ebx ; compute delta ip, not yet count imm data
                 ; now ebx free
                 test al, 10000000b ; first byte still in al
@@ -191,10 +191,7 @@ ArithLogic PROC
                 cmp al, 10000011b ; 100000 s[1] w[1], 00: +1, 01: +2, 10: +1, 11: +1
                 sete cl
                 lea edi, [edi + 1 + ecx] ; delta ip in edi
-                ; (virtual) imm data address already in esi
-                add esi, offset MEMO
-                movzx ecx, word ptr R_CS
-                add esi, ecx
+                ; imm data host address(end of displacement) already in esi
                 jmp SRC_DEST ; first byte still in al
     SRC_DEST:
                 ; first byte still in al
@@ -368,6 +365,70 @@ Call_Indirect_Far:
 ControlTransfer_Done:
                 ret
 ControlTransfer ENDP
+
+; error case return address passed by ecx
+; success will use ret
+DataTransferMOV PROC
+                computeFlatIP ; in ebx
+                movzx eax, word ptr [ebx]
+                xor al, 10001000b
+                test al, 11111000b ; high 5 10001
+                jz RegWithRegOrMem; 10001xxx
+                xor al, 00101000b ; equiv to xor 10100000b at once
+                test al, 11111100b ; high 6 101000
+                jz MemWithAccumulator
+                xor al, 00010000b ; equiv to xor 10110000b at once
+                test al, 11110000b ; high 4 1011
+                jz ImmToReg
+                xor al, 01110110b ; equiv to xor 11000110b at once
+                test al, 11111110b ; high 7 1100011
+                jz ImmToRegOrMem
+                jmp ecx
+    ImmToRegOrMem:
+                or al, 10000000b ; set flag to reuse code
+    RegWithRegOrMem:
+                computeEffectiveAddress SrcIsRegOrImm, 0
+    SrcIsRegOrImm:
+                test al, 10000000b ; test flag
+                jnz SrcIsImm
+                ; Not Imm, Use Reg
+                shr ah, 3
+                movzx ecx, ah ; 000 mod[2] reg[3], moved before jump to reuse code
+                test al, 0001b ; decide 16bit or 8bit register
+                jnz REG_IsWordReg
+                ; 8bit register
+                and ecx, 0011b ; ecx = 000 mod[2] reg[3]
+                lea esi, REGB[ecx * 2] ; ACDB
+                movzx ecx, ah
+                and ecx, 0100b ; 0 -> L, 1 -> H
+                shr ecx, 2
+                add esi, ecx ; reg register "address" now in esi
+                test
+    REG_IsWordReg:
+                ; 16bit register
+                and ecx, 0111b
+                lea esi, REGW[ecx * 2] ; reg register "address" now in esi
+                jmp SRC_DEST ; first byte still in al
+    SrcIsImm:
+                ; compute delta ip
+                movzx ecx, al
+                and ecx, 0001b ; w[1]
+                lea edi, [esi + 1 + ecx] ; delta ip in edi
+                sub edi, ebx
+                add R_IP, di
+                mov esi, [esi]
+                mov [edx], esi
+                ret
+    SRC_DEST:
+                test al, 0010b; d[1]
+                jz Operand ; d = 0 no need to exchange
+                xchg esi, edx ; put src in esi and dest in edx
+                ; fall-through
+
+    MemWithAccumulator:
+    ImmToReg:
+
+DataTransferMOV ENDP
 
 computeEffectiveAddressUnitTest MACRO
                 LOCAL callback, L1, L2, L3, L4, L5, L6
