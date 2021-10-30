@@ -631,16 +631,16 @@ FlagInstruction PROC
                 cmp al, 0F9h
                 je ProcessStc
                 ret
-ProcessClc:     
+        ProcessClc:     
                 lahf
                 clc
                 sahf
                 jmp StcClcDone
-ProcessStc:     
+        ProcessStc:     
                 lahf
                 stc
                 sahf
-StcClcDone:     
+        StcClcDone:     
                 mov ax, [R_IP]
                 inc ax ; 1 byte long
                 mov R_IP, ax
@@ -706,8 +706,7 @@ main PROC
                 mov ecx, 80*25
                 mov ax, 0
                 repnz lodsw          ; clrscr
-ExecLoop:
-                ; first, draw video memory
+ExecLoop:       ; first, draw video memory
                 INVOKE WriteEmuScreen, ADDR [MEMO + 0b8000h]
 
                 ; execute next instruction
@@ -718,9 +717,13 @@ ExecLoop:
                 cmp eax, 0F4h
                 je EmulatorHalt
 
-                ; TODO: fill instruction processing procedures here
+                INVOKE ArithLogic
+                INVOKE ControlTransfer
+                INVOKE DataTransferMOV
+                INVOKE FlagInstruction
 
                 popad
+                jmp ExecLoop
 
 EmulatorHalt:
                 INVOKE MessageBox, NULL, ADDR haltMsg, ADDR haltMsgTitle, MB_OK
