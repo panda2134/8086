@@ -77,7 +77,10 @@ pushEmulatorStack ENDM
 ; mod[2] xxx r/m[3] passed by ah, start of instruction passed by ebx
 ; not modified ah and ah
 ; effective address returned by edx, end of displacement returned by esi
-computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
+computeEffectiveAddress MACRO LeaveLabel, DisableFallThroughLeave, SegmentType
+                IFB <SegmentType>
+                    SegmentType EQU R_DS
+                ENDIF
                 ; MACRO local label
                 LOCAL NoDisplacement, MOD123, MOD23, RM_Decode, RM_Is1XX, RM_Is11X, AddDisplacment, MOD3, RM_IsWordReg
                 ; ah already = mod[2] reg[3] r/m[3] or mod[2] op[3] r/m[3]
@@ -141,7 +144,9 @@ computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
                 add edx, edi ; (virtual) effective address now in edx
                 ; now edi free
                 add edx, offset MEMO
-                movzx ecx, R_DS ; (virtual) data segment, may be override, TODO
+                movzx ecx, SegmentType ; (virtual) data/code segment, may be override, TODO
+                shl ecx, 4
+                and ecx, 0FFFFH
                 add edx, ecx
                 jmp LeaveLabel
     MOD3:
@@ -163,7 +168,7 @@ computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
                 and ecx, 0111b
                 lea edx, REGW[ecx * 2] ; register "address" now in edx
                 ; fall-through
-    IF DisableFallThroghLeave
+    IF DisableFallThroughLeave
                     jmp LeaveLabel
     ENDIF
 ENDM
@@ -358,7 +363,7 @@ ControlTransfer PROC
                 cmp ax, 10011010b
                 je Call_Direct_Far
                 cmp ax, 0FFh
-                je Call_Indirect
+                je Call_Jmp_Indirect
 Call_Direct_Near:
                 ; first, push rtn addr (16bit) into stack
                 ; todo: exception when edx < 2
@@ -385,7 +390,7 @@ Call_Direct_Far:
                 mov R_IP, cx
                 mov R_CS, dx
                 jmp ControlTransfer_Done
-Call_Indirect:
+Call_Jmp_Indirect:
                 movzx ecx, byte ptr [ebx + 1]
                 shr ecx, 3
                 and ecx, 111b
@@ -393,8 +398,16 @@ Call_Indirect:
                 je Call_Indirect_Near
                 cmp ecx, 011b ; check for xx011xxx
                 je Call_Indirect_Far
+                cmp ecx, 100b
+                je Jmp_Indirect_Near
+                cmp ecx. 101b
+                je Jmp_Indirect_Far
                 ret ; other instructions
 Call_Indirect_Near:
+                mov ah, byte ptr [ebx + 1]
+                computeEffectiveAddress Call_Indirect_Near_EA_Done, 1, R_CS
+Call_Indirect_Near_EA_Done:
+                sub edx, MEMO ; convert to virtual addr
 
 Call_Indirect_Far:
 
