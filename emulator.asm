@@ -74,7 +74,7 @@ pushEmulatorStack MACRO val
                 mov MEMO[eax], val ; put onto stack
                 pop ebx
                 pop eax
-pushEmulatorStack ENDM
+ENDM
 
 ; mod[2] xxx r/m[3] passed by ah, start of instruction(host) passed by ebx
 ; not modified ah and ebx
@@ -368,7 +368,48 @@ ControlTransfer PROC
                 je Jmp_Direct_Far
                 cmp ah, 7
                 je Jmp_Conditional
+                cmp ax, 0C3h
+                mov ecx, 0 ; pop 0 byte
+                je Ret_Near
+                cmp ax, 0CBh
+                mov ecx, 0 ; pop 0 byte
+                je Ret_Far
+                cmp ax, 0C2h
+                movzx ecx, word ptr [ebx+1] ; pop imm16 bytes
+                je Ret_Near
+                cmp ax, 0CAh
+                movzx ecx, word ptr [ebx+1] ; pop imm16 bytes
+                je Ret_Near
                 ret ; other instructions
+
+Ret_Near:       movzx edx, R_SS
+                shl edx, 4
+                add edx, R_SP ; now edx is virt flat addr of stack top
+                mov ax, word ptr MEMO[edx] ; rtn addr in ax
+
+                mov R_IP, ax
+
+                mov dx, R_SP
+                add dx, 2 ; pop rtn addr
+                add dx, cx ; pop extra bytes
+                mov R_SP, dx
+                jmp ControlTransfer_Done
+
+Ret_Far:        movzx edx, R_SS
+                shl edx, 4
+                add edx, R_SP
+                mov eax, dword ptr MEMO[edx]; rtn addr (cs:ip) in ax
+
+                mov R_IP, ax
+                shr eax, 16
+                mov R_CS, ax
+
+                mov dx, R_SP
+                add dx, 4 ; pop rtn addr (cs:ip)
+                add dx, cx ; pop extra bytes
+                mov R_SP, dx
+                jmp ControlTransfer_Done
+
 Jmp_Conditional:
                 FOR x,<70h,71h,72h,73h,74h,75h,76h,77h,78h,79h,7ah,7bh,7ch,7dh,7eh,7fh>
                         cmp ax, x
