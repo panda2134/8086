@@ -64,12 +64,12 @@ pushEmulatorStack MACRO val
                 ENDIF
                 push eax
                 push ebx
-                mov ax, [R_SS]
-                mov bx, [R_SP]
-                sub bx, TYPE val
-                shl ax, 4
-                add ax, bx
-                and eax, 0FFFFH ; eax is new stack top in emulator
+                movzx eax, [R_SS]
+                movzx ebx, [R_SP]
+                sub ebx, TYPE val
+                shl eax, 4
+                add eax, ebx
+                and eax, 0FFFFFH ; eax is new stack top in emulator
                 mov R_SP, bx    ; write back new SP
                 mov MEMO[eax], val ; put onto stack
                 pop ebx
@@ -346,19 +346,33 @@ ArithLogic ENDP
 ControlTransfer PROC
                 computeFlatIP
                 movzx eax, byte ptr [ebx] ; read 1 byte into ax, and check type of instruction
-                cmp ax, 11101000b   ; parse instruction type
+
+                cmp ax, 0E8h   ; parse instruction type
                 je Call_Direct_Near
-                cmp ax, 10011010b
+                cmp ax, 09Ah
                 je Call_Direct_Far
                 cmp ax, 0FFh
                 je Call_Jmp_Indirect
+                cmp ax, 0EBh
+                je Jmp_Short_Rel8
+                cmp ax, 0E9h
+                je Jmp_Near_Rel16
+                cmp ax, 0EAh
+                je Jmp_Direct_Far
+                ret ; other instructions
+Jmp_Short_Rel8:
+                movsx di, byte ptr [ebx + 1]
+                add R_IP, di ; ip += rel8 sign extended to 16bit
+                add R_IP, 2  ; next instruction -> +2
+                jmp ControlTransfer_Done
 Call_Direct_Near:
                 ; first, push rtn addr (16bit) into stack
                 ; todo: exception when edx < 2
                 mov cx, R_IP
                 add cx, 3 ; instruction length = 3 bytes
                 pushEmulatorStack cx
-                mov R_IP, cx ; ip is next instruction
+Jmp_Near_Rel16:
+                mov R_IP, cx ; now ip points to the next instruction
                 ; then retrieve displacement
                 mov di, word ptr [ebx + 1]
                 ; ip += displacement
@@ -371,15 +385,19 @@ Call_Direct_Far:
                 mov cx, R_IP
                 add cx, 5
                 pushEmulatorStack cx
+Jmp_Direct_Far:
                 ; retrieve new disp and cs
-                mov cx, word ptr [ebx + 1]
-                mov dx, word ptr [ebx + 3]
+                mov ecx, dword ptr [ebx + 1]
                 ; ip := displacement; change cs
                 mov R_IP, cx
-                mov R_CS, dx
+                shr ecx, 16
+                mov R_CS, cx
                 jmp ControlTransfer_Done
 Call_Jmp_Indirect:
-                movzx ecx, byte ptr [ebx + 1]
+                mov ah, byte ptr [ebx + 1]
+                computeEffectiveAddress Control_Flow_EA_Done, 1
+Control_Flow_EA_Done:
+                movzx ecx, ah
                 shr ecx, 3
                 and ecx, 111b
                 cmp ecx, 010b ; check for xx010xxx
@@ -392,13 +410,27 @@ Call_Jmp_Indirect:
                 je Jmp_Indirect_Far
                 ret ; other instructions
 Call_Indirect_Near:
-                mov ah, byte ptr [ebx + 1]
-                computeEffectiveAddress Call_Indirect_Near_EA_Done, 1, R_CS
-Call_Indirect_Near_EA_Done:
-                sub edx, MEMO ; convert to virtual addr
-
+                mov ecx, esi
+                sub ecx, ebx ; esi-ebx is command length
+                add cx, R_IP ; add to R_IP to get offset of next instruction
+                pushEmulatorStack cx ; push return address
+Jmp_Indirect_Near:
+                mov cx, word ptr [edx] ; load offset into cx
+                mov R_IP, cx ; write back new ip
+                jmp ControlTransfer_Done
 Call_Indirect_Far:
-
+                mov cx, R_CS
+                pushEmulatorStack cx
+                mov ecx, esi
+                sub ecx, ebx
+                add cx, R_IP
+                pushEmulatorStack cx
+Jmp_Indirect_Far:
+                mov ecx, dword ptr [edx]
+                mov R_IP, cx
+                shr ecx, 16
+                mov R_CS, cx
+                jmp ControlTransfer_Done
 ControlTransfer_Done:
                 ret
 ControlTransfer ENDP
