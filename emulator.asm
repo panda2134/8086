@@ -348,6 +348,13 @@ ArithLogic PROC
                 ret
 ArithLogic ENDP
 
+; uses ah
+GenerateJmpConditional MACRO inst, label
+label:          mov ah, R_FLAGS
+                sahf
+                inst Jmp_Short_Rel8
+                jmp ControlTransfer_Done
+ENDM
 
 ; NOTE: cs can be changed!
 ControlTransfer PROC
@@ -366,7 +373,31 @@ ControlTransfer PROC
                 je Jmp_Near_Rel16
                 cmp ax, 0EAh
                 je Jmp_Direct_Far
+                cmp ah, 7
+                je Jmp_Conditional
                 ret ; other instructions
+Jmp_Conditional:
+                FOR x,<70h,71h,72h,73h,74h,75h,76h,77h,78h,79h,7ah,7bh,7ch,7dh,7eh,7fh>
+                        cmp ax, x
+                        je Jmp&x
+                ENDM
+
+                GenerateJmpConditional jo, Jmp70h
+                GenerateJmpConditional jno, Jmp71h
+                GenerateJmpConditional jb, Jmp72h
+                GenerateJmpConditional jae, Jmp73h
+                GenerateJmpConditional je, Jmp74h
+                GenerateJmpConditional jne, Jmp75h
+                GenerateJmpConditional jbe, Jmp76h
+                GenerateJmpConditional ja, Jmp77h
+                GenerateJmpConditional js, Jmp78h
+                GenerateJmpConditional jns, Jmp79h
+                GenerateJmpConditional jpe, Jmp7ah
+                GenerateJmpConditional jpo, Jmp7bh
+                GenerateJmpConditional jl, Jmp7ch
+                GenerateJmpConditional jge, Jmp7dh
+                GenerateJmpConditional jle, Jmp7eh
+                GenerateJmpConditional jg, Jmp7fh
 Jmp_Short_Rel8:
                 movsx di, byte ptr [ebx + 1]
                 add R_IP, di ; ip += rel8 sign extended to 16bit
