@@ -126,7 +126,7 @@ computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
     ENDIF
 ENDM
 
-; use eax
+; use ebx
 computeFlatIP MACRO
                 movzx eax, R_CS
                 movzx ebx, R_IP
