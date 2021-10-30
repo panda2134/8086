@@ -126,7 +126,7 @@ computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
     ENDIF
 ENDM
 
-; use eax
+; ebx is flat addr in host machine
 computeFlatIP MACRO
                 movzx eax, R_CS
                 shl eax, 4
@@ -361,6 +361,7 @@ Call_Indirect:
                 je Call_Indirect_Far
                 ret ; other instructions
 Call_Indirect_Near:
+
 Call_Indirect_Far:
 
 ControlTransfer_Done:
