@@ -6,7 +6,8 @@ includelib      msvcrt.lib
 printf          PROTO C :ptr byte, :VARARG
 
 .data
-szMsg			byte "%d %d", 0AH, 0DH, 0
+szMsg			byte "%d %d",  0Dh, 0Ah, 0
+invalidOpMsg    byte "Invalid Operation!", 0Dh, 0Ah, 0
 REGB            label byte
 REGW            label word
 R_AX            word 0
@@ -25,12 +26,23 @@ R_DS            word 0
 
 R_FLAGS         byte 0
 
+R_IP            word 0
+
 MEMO            byte 1048576 DUP(?)
 MEMO_Guard      byte 00FFH
 
 .code
-; origin pc pass in ebx, new pc return in edi
+
+mInitFlatAddrPcToEBX MACRO
+                movzx ebx, R_CS
+                shl ebx, 4
+                or ebx, R_IP    ; now ebx is the flat address of current instruction
+ENDM
+
+; origin pc (as flat addr) pass in ebx, new pc return in edi (as flat addr)
+; will be calculated and handled inside the proc
 ArithLogic PROC
+                mInitFlatAddrPcToEBX
                 movzx eax, word ptr [ebx]; read 2 bytes at once for later use, may exceed 1M, but we are in a emulator
                 test eax, 11000100b ; only test low byte -- the first byte
                 jz RegWithRegOrMem; must be 00xxx0xx, No Imm Op
@@ -274,8 +286,78 @@ WriteBackW:
 WriteFlags:
                 lahf ; load flags into ah
                 mov R_FLAGS, ah
+
+                mov ecx, R_CS
+                shl ecx, 4
+                sub edi, ecx
+                mov R_IP, di
+
                 ret
 ArithLogic ENDP
+
+
+; origin pc pass in ebx, new pc return in edi
+; NOTE: cs can be changed!
+ControlTransfer PROC
+                mInitFlatAddrPcToEBX
+                movzx eax, byte ptr [ebx] ; read 1 byte into ax, and check type of instruction
+                cmp ax, 11101000b   ; parse instruction type
+                je Call_Direct_Near
+                cmp ax, 10011010b
+                je Call_Direct_Far
+                cmp ax, 0FFh
+                je Call_Indirect
+Call_Direct_Near:
+                ; first, push rtn addr (16bit) into stack
+                movzx edx, R_SP
+                sub edx, 2
+                ; todo: exception when edx < 2
+                mov ecx, ebx
+                add ecx, 3 ; instruction length = 3 bytes
+                mov [MEMO+edx], cx
+                ; write back new SP
+                mov R_SP, dx
+                ; then retrieve displacement
+                mov cx, [ebx + 1]
+                ; ip += displacement
+                add R_IP, cx
+                jmp ControlTransfer_Done
+Call_Direct_Far:
+                ; push cs, then push rtn addr
+                movzx edx, R_SP
+                sub edx, 4
+                ; todo: exception when edx < 4
+                mov cx, R_IP
+                add cx, 5
+                mov [MEMO+edx], cx
+                mov cx, R_CS
+                mov [MEMO+edx+2], cx
+                ; write back new SP
+                mov R_SP, dx
+                ; retrieve new disp and cs
+                mov cx, [ebx + 1]
+                mov dx, [ebx + 3]
+                ; ip := displacement; change cs
+                mov R_IP, cx
+                mov R_CS, dx
+                jmp ControlTransfer_Done
+Call_Indirect:
+                movzx ecx, byte ptr [ebx + 1]
+                shr ecx, 3
+                and ecx, 111b
+                cmp ecx, 010b ; check for xx010xxx
+                je Call_Indirect_Near
+                cmp ecx 011b ; check for xx011xxx
+                je Call_Indirect_Far
+                ret ; other instructions
+Call_Indirect_Near:
+Call_Indirect_Far:
+
+ControlTransfer_Done:
+                ret
+ControlTransfer ENDP
+
+
 run:
                 invoke printf, offset szMsg, eax, ebx
                 ret

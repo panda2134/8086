@@ -17,7 +17,7 @@ printf          PROTO C :ptr byte, :VARARG
     memory byte 1048576 dup(?)
 .code
 
-; we assume that the memoryory is of 1MB size, and code should be loaded at 7c0:0
+; we assume that the memory is of 1MB size, and code should be loaded at 7c0:0
 ; that is different from real 8086s which boot up from ffff:0
 ; however 7c0:0 is more convenient for our test binary
 ; time permitted, we might switch to ffff:0 and code a small bios
