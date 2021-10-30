@@ -342,8 +342,8 @@ ArithLogic PROC
 ArithLogic ENDP
 
 ; uses ah
-GenerateJmpConditional MACRO inst, label
-label:          mov ah, R_FLAGS
+GenerateJmpConditional MACRO inst
+                mov ah, R_FLAGS
                 sahf
                 inst Jmp_Short_Rel8
                 jmp ControlTransfer_Done
@@ -375,22 +375,23 @@ Jmp_Conditional:
                         je Jmp&x
                 ENDM
 
-                GenerateJmpConditional jo, Jmp70h
-                GenerateJmpConditional jno, Jmp71h
-                GenerateJmpConditional jb, Jmp72h
-                GenerateJmpConditional jae, Jmp73h
-                GenerateJmpConditional je, Jmp74h
-                GenerateJmpConditional jne, Jmp75h
-                GenerateJmpConditional jbe, Jmp76h
-                GenerateJmpConditional ja, Jmp77h
-                GenerateJmpConditional js, Jmp78h
-                GenerateJmpConditional jns, Jmp79h
-                GenerateJmpConditional jpe, Jmp7ah
-                GenerateJmpConditional jpo, Jmp7bh
-                GenerateJmpConditional jl, Jmp7ch
-                GenerateJmpConditional jge, Jmp7dh
-                GenerateJmpConditional jle, Jmp7eh
-                GenerateJmpConditional jg, Jmp7fh
+Jmp70h:         GenerateJmpConditional jo
+Jmp71h:         GenerateJmpConditional jno
+Jmp72h:         GenerateJmpConditional jb
+Jmp73h:         GenerateJmpConditional jae
+Jmp74h:         GenerateJmpConditional je
+Jmp75h:         GenerateJmpConditional jne
+Jmp76h:         GenerateJmpConditional jbe
+Jmp77h:         GenerateJmpConditional ja
+Jmp78h:         GenerateJmpConditional js
+Jmp79h:         GenerateJmpConditional jns
+Jmp7ah:         GenerateJmpConditional jpe
+Jmp7bh:         GenerateJmpConditional jpo
+Jmp7ch:         GenerateJmpConditional jl
+Jmp7dh:         GenerateJmpConditional jge
+Jmp7eh:         GenerateJmpConditional jle
+Jmp7fh:         GenerateJmpConditional jg
+
 Jmp_Short_Rel8:
                 movsx di, byte ptr [ebx + 1]
                 add R_IP, di ; ip += rel8 sign extended to 16bit
