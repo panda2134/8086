@@ -32,6 +32,48 @@ MEMO            byte 1048576 DUP(?)
 MEMO_Guard      byte 00FFH
 
 .code
+
+pushEmulatorStack MACRO val
+                IFIDNI <val>, <ax>
+                    ECHO Error: cannot use the given reg here
+                    EXITM
+                ENDIF
+                IFIDNI <val>, <bx>
+                    ECHO Error: cannot use the given reg here
+                    EXITM
+                ENDIF
+                
+                IFIDNI <val>, <ah>
+                    ECHO Error: cannot use the given reg here
+                    EXITM
+                ENDIF
+                IFIDNI <val>, <bh>
+                    ECHO Error: cannot use the given reg here
+                    EXITM
+                ENDIF
+                
+                IFIDNI <val>, <al>
+                    ECHO Error: cannot use the given reg here
+                    EXITM
+                ENDIF
+                IFIDNI <val>, <bl>
+                    ECHO Error: cannot use the given reg here
+                    EXITM
+                ENDIF
+                push eax
+                push ebx
+                mov ax, [R_SS]
+                mov bx, [R_SP]
+                sub bx, TYPE val
+                shl ax, 4
+                add ax, bx
+                and eax, 0FFFFH ; eax is new stack top in emulator
+                mov R_SP, bx    ; write back new SP
+                mov MEMO[eax], val ; put onto stack
+                pop ebx
+                pop eax
+pushEmulatorStack ENDM
+
 ; mod[2] xxx r/m[3] passed by ah, start of instruction passed by ebx
 ; not modified ah and ah
 ; effective address returned by edx, end of displacement returned by esi
@@ -319,14 +361,11 @@ ControlTransfer PROC
                 je Call_Indirect
 Call_Direct_Near:
                 ; first, push rtn addr (16bit) into stack
-                sub R_SP, 2
-                ; todo: exception when R_SP < 2
-                movzx edx, R_SP
-                movzx ecx, R_SS
-                lea edx, MEMO[edx + ecx]
+                ; todo: exception when edx < 2
                 mov cx, R_IP
                 add cx, 3 ; instruction length = 3 bytes
-                mov word ptr [edx], cx
+                pushEmulatorStack cx
+                mov R_IP, cx ; ip is next instruction
                 ; then retrieve displacement
                 mov di, word ptr [ebx + 1]
                 ; ip += displacement
@@ -334,17 +373,11 @@ Call_Direct_Near:
                 jmp ControlTransfer_Done
 Call_Direct_Far:
                 ; push cs, then push rtn addr
-                sub R_SP, 4
-                movzx edx, R_SP
-                movzx ecx, R_SS
-                lea edx, MEMO[edx + ecx]
-
-                mov cx, R_IP
-                add cx, 5 ; instruction length = 3 bytes
-                mov word ptr [edx], cx
                 mov cx, R_CS
-                mov word ptr [edx + 2], cx
-
+                pushEmulatorStack cx
+                mov cx, R_IP
+                add cx, 5
+                pushEmulatorStack cx
                 ; retrieve new disp and cs
                 mov cx, word ptr [ebx + 1]
                 mov dx, word ptr [ebx + 3]
