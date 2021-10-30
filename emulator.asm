@@ -33,6 +33,7 @@ MEMO_Guard      byte 00FFH
 
 .code
 ; mod[2] xxx r/m[3] passed by ah, start of instruction passed by ebx
+; not modified ah and ah
 ; effective address returned by edx, end of displacement returned by esi
 computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
                 ; MACRO local label
@@ -104,7 +105,6 @@ computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
     MOD3:
                 ; r/m = register
                 lea esi, [ebx + 2] ; End of displacement (No Displacement)
-                ; now ebx free
                 movzx ecx, ah ; mod[2] reg[3] r/m[3], moved before jump to reuse code
                 test al, 0001b ; first byte still in al, decide 16bit or 8bit register
                 jnz RM_IsWordReg
@@ -129,8 +129,9 @@ ENDM
 ; use eax
 computeFlatIP MACRO
                 movzx eax, R_CS
+                shl eax, 4
                 movzx ebx, R_IP
-                lea ebx, [ebx + eax * 4]
+                lea ebx, MEMO[ebx + eax]
 ENDM
 
 ; error case return address passed by ecx
@@ -151,7 +152,7 @@ ArithLogic PROC
                 setnz cl
                 lea edx, [R_AX] ; dest addr
                 lea esi, [ebx + 1] ; src addr
-                lea edi, [ebx + 2 + ecx] ; new pc
+                lea edi, [ecx + 2] ; delta ip
                 ; now ebx free
                 movzx ebx, al ; first byte contains op[3]
                 jmp Operand
@@ -159,7 +160,9 @@ ArithLogic PROC
     RegWithRegOrMem:
                 computeEffectiveAddress SrcIsRegOrImm, 0
     SrcIsRegOrImm:
-                mov edi, esi; save "End of displacement" for new ip
+                mov edi, esi ; copy "End of displacement" for delta ip
+                sub edi, ebx ; compute delta ip, not yet count imm data
+                ; now ebx free
                 test al, 10000000b ; first byte still in al
                 jnz SrcIsImm
                 ; Not Imm, Use Reg
@@ -183,11 +186,11 @@ ArithLogic PROC
                 jmp SRC_DEST ; first byte still in al
     SrcIsImm:
                 movzx ebx, ah ; second byte contains op[3]
-                ; compute new ip
+                ; compute delta ip
                 xor ecx, ecx
                 cmp al, 10000011b ; 100000 s[1] w[1], 00: +1, 01: +2, 10: +1, 11: +1
                 sete cl
-                lea edi, [edi + 1 + ecx] ; new ip in edi
+                lea edi, [edi + 1 + ecx] ; delta ip in edi
                 ; (virtual) imm data address already in esi
                 add esi, offset MEMO
                 movzx ecx, word ptr R_CS
@@ -299,8 +302,6 @@ ArithLogic PROC
     WriteFlags:
                 lahf ; load flags into ah
                 mov R_FLAGS, ah
-                computeFlatIP
-                sub edi, ebx
                 add R_IP, di
                 ret
 ArithLogic ENDP
@@ -323,11 +324,11 @@ Call_Direct_Near:
                 ; todo: exception when edx < 2
                 mov ecx, ebx
                 add ecx, 3 ; instruction length = 3 bytes
-                mov word ptr [MEMO + edx], cx
+                mov word ptr MEMO[edx], cx
                 ; write back new SP
                 mov R_SP, dx
                 ; then retrieve displacement
-                mov cx, [ebx + 1]
+                mov cx, word ptr [ebx + 1]
                 ; ip += displacement
                 add R_IP, cx
                 jmp ControlTransfer_Done
@@ -338,14 +339,14 @@ Call_Direct_Far:
                 ; todo: exception when edx < 4
                 mov cx, R_IP
                 add cx, 5
-                mov word ptr [MEMO + edx], cx
+                mov word ptr MEMO[edx], cx
                 mov cx, R_CS
-                mov word ptr [MEMO + 2 +edx], cx
+                mov word ptr MEMO[edx + 2], cx
                 ; write back new SP
                 mov R_SP, dx
                 ; retrieve new disp and cs
-                mov cx, [ebx + 1]
-                mov dx, [ebx + 3]
+                mov cx, word ptr [ebx + 1]
+                mov dx, word ptr [ebx + 3]
                 ; ip := displacement; change cs
                 mov R_IP, cx
                 mov R_CS, dx
