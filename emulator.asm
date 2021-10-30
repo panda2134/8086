@@ -133,6 +133,8 @@ computeFlatIP MACRO
                 lea ebx, [ebx + eax * 4]
 ENDM
 
+; error case return address passed by ecx
+; success will use ret
 ArithLogic PROC
                 computeFlatIP
                 movzx eax, word ptr [ebx]; read 2 bytes at once for later use, may exceed 1M, but we are in a emulator
@@ -142,7 +144,7 @@ ArithLogic PROC
                 jz ImmWithRegOrMem; must be 100000xx(with test 11000100b not zero), Imm to reg/mem
                 test eax, 11000010b
                 jz ImmToAcc; must be 00xxx10x(with test 11000100b not zero), Imm to accumulator Op
-                ret; Other Instructions
+                jmp ecx; Other Instructions
 ImmToAcc:
                 xor ecx, ecx
                 test al, 0001b
