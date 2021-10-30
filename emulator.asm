@@ -353,19 +353,33 @@ ArithLogic ENDP
 ControlTransfer PROC
                 computeFlatIP
                 movzx eax, byte ptr [ebx] ; read 1 byte into ax, and check type of instruction
-                cmp ax, 11101000b   ; parse instruction type
+
+                cmp ax, 0E8h   ; parse instruction type
                 je Call_Direct_Near
-                cmp ax, 10011010b
+                cmp ax, 09Ah
                 je Call_Direct_Far
                 cmp ax, 0FFh
                 je Call_Jmp_Indirect
+                cmp ax, 0EBh
+                je Jmp_Short_Rel8
+                cmp ax, 0E9h
+                je Jmp_Near_Rel16
+                cmp ax, 0EAh
+                je Jmp_Direct_Far
+                ret ; other instructions
+Jmp_Short_Rel8:
+                movsx di, byte ptr [ebx + 1]
+                add R_IP, di ; ip += rel8 sign extended to 16bit
+                add R_IP, 2  ; next instruction -> +2
+                jmp ControlTransfer_Done
 Call_Direct_Near:
                 ; first, push rtn addr (16bit) into stack
                 ; todo: exception when edx < 2
                 mov cx, R_IP
                 add cx, 3 ; instruction length = 3 bytes
                 pushEmulatorStack cx
-                mov R_IP, cx ; ip is next instruction
+Jmp_Near_Rel16:
+                mov R_IP, cx ; now ip points to the next instruction
                 ; then retrieve displacement
                 mov di, word ptr [ebx + 1]
                 ; ip += displacement
@@ -378,12 +392,13 @@ Call_Direct_Far:
                 mov cx, R_IP
                 add cx, 5
                 pushEmulatorStack cx
+Jmp_Direct_Far:
                 ; retrieve new disp and cs
-                mov cx, word ptr [ebx + 1]
-                mov dx, word ptr [ebx + 3]
+                mov ecx, dword ptr [ebx + 1]
                 ; ip := displacement; change cs
                 mov R_IP, cx
-                mov R_CS, dx
+                shr ecx, 16
+                mov R_CS, cx
                 jmp ControlTransfer_Done
 Call_Jmp_Indirect:
                 mov ah, byte ptr [ebx + 1]
