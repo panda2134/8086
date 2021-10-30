@@ -6,6 +6,8 @@ includelib      msvcrt.lib
 printf          PROTO C :ptr byte, :VARARG
 
 .data
+haltMsgTitle    byte "Halted", 0
+haltMsg    byte "HLT is executed; since interrupt is not supported, the emulator will now exit.", 0
 debugMsg        byte "%d %d %d %d", 0AH, 0DH, 0
 invalidOpMsg    byte "Invalid Operation!", 0Dh, 0Ah, 0
 REGB            label byte
@@ -30,8 +32,10 @@ R_FLAGS         byte 0
 
 R_IP            word 0
 
-MEMO            byte 1048576 DUP(?)
 MEMO_Guard      byte 00FFH
+
+.data?
+MEMO            byte 1048576 DUP(?)
 
 .code
 
@@ -140,8 +144,8 @@ ENDM
 
 ; error case return address passed by ecx
 ; success will use ret
+; flat ip in ebx
 ArithLogic PROC
-                computeFlatIP
                 movzx eax, word ptr [ebx]; read 2 bytes at once for later use, may exceed 1M, but we are in a emulator
                 test eax, 11000100b ; only test low byte -- the first byte
                 jz RegWithRegOrMem; must be 00xxx0xx, No Imm Op
@@ -306,6 +310,7 @@ GenerateJmpConditional MACRO jmp_cc
                 jmp ControlTransfer_Done
 ENDM
 
+; flat ip in ebx
 ; NOTE: cs can be changed!
 ; error case return address passed by ecx
 ; success will use ret
@@ -328,8 +333,22 @@ ControlTransfer PROC
                 cmp al, x
                 je Jmp&x
     ENDM
-                jmp ecx ; other instructions
+                movzx edi, word ptr [ebx + 1] ; pop imm16 bytes
+                cmp al, 0C2h
+                je Ret_Near
+                cmp al, 0CAh
+                ; edi alread load
+                je Ret_Far
 
+                xor edi, edi ; pop 0 byte
+                cmp al, 0C3h
+                je Ret_Near
+                cmp al, 0CBh
+                ; edi alread clear
+                je Ret_Far
+
+                jmp ecx ; other instructions
+                
     Jmp70h:     GenerateJmpConditional jo
     Jmp71h:     GenerateJmpConditional jno
     Jmp72h:     GenerateJmpConditional jb
@@ -347,12 +366,12 @@ ControlTransfer PROC
     Jmp7eh:     GenerateJmpConditional jle
     Jmp7fh:     GenerateJmpConditional jg
 
-Jmp_Short_Rel8:
+    Jmp_Short_Rel8:
                 movsx di, ah
                 add di, 2 ; instruction length = 2 bytes
                 add R_IP, di ; ip += rel8 sign extended to 16bit (relative to next instruction)
                 jmp ControlTransfer_Done
-Call_Direct_Near: ; near direct is ip relative, cannot reuse indirect code
+    Call_Direct_Near: ; near direct is ip relative, cannot reuse indirect code
                 movzx edx, R_SP
                 movzx ecx, R_SS
                 sub R_SP, 2 ; write after read to avoid stall
@@ -364,26 +383,26 @@ Call_Direct_Near: ; near direct is ip relative, cannot reuse indirect code
                 add si, word ptr [ebx + 1]
                 mov R_IP, si ; write back
                 jmp ControlTransfer_Done
-Jmp_Near_Rel16:
+    Jmp_Near_Rel16:
                 ; ip += displacement
                 mov si, R_IP
                 add si, 3
                 add si, word ptr [ebx + 1]
                 mov R_IP, si ; write back
                 jmp ControlTransfer_Done
-Call_Direct_Far:
+    Call_Direct_Far:
                 lea edx, [ebx + 1]
                 lea esi, [ebx + 5]
                 jmp Call_Indirect_Far ; reuse code
-Jmp_Direct_Far:
+    Jmp_Direct_Far:
                 lea edx, [ebx + 1]
                 lea esi, [ebx + 5]
                 jmp Jmp_Indirect_Far ; reuse code
-Call_Jmp_Indirect:
+    Call_Jmp_Indirect:
                 push ecx ; error case ret addr
                 computeEffectiveAddress Control_Flow_EA_Done, 0, R_DS
                 ; fall-through
-Control_Flow_EA_Done:
+    Control_Flow_EA_Done:
                 pop ecx
                 movzx edi, ah
                 shr edi, 3
@@ -397,7 +416,7 @@ Control_Flow_EA_Done:
                 cmp edi, 101b
                 je Jmp_Indirect_Far
                 jmp ecx ; other instructions
-Call_Indirect_Near:
+    Call_Indirect_Near:
                 movzx edx, R_SP
                 movzx ecx, R_SS
                 sub R_SP, 2 ; write after read to avoid stall
@@ -407,11 +426,11 @@ Call_Indirect_Near:
                 add si, R_IP ; add to R_IP to get offset of next instruction
                 mov word ptr MEMO[edx + ecx - 2], si
                 ; fall-through
-Jmp_Indirect_Near:
-                mov cx, word ptr [edx] ; load offset into cx
-                mov R_IP, cx ; write back new ip
+    Jmp_Indirect_Near:
+                mov ax, word ptr [edx] ; load offset into cx
+                mov R_IP, ax ; write back new ip
                 jmp ControlTransfer_Done
-Call_Indirect_Far:
+    Call_Indirect_Far:
                 ; push cs, then push ip
                 movzx edx, R_SP
                 movzx ecx, R_SS
@@ -425,20 +444,45 @@ Call_Indirect_Far:
                 add si, R_IP ; add to R_IP to get offset of next instruction
                 mov word ptr [edx - 2], si
                 ; fall-through
-Jmp_Indirect_Far:
-                mov ecx, dword ptr [edx]
-                mov R_IP, cx
-                shr ecx, 16
-                mov R_CS, cx
+    Jmp_Indirect_Far:
+                mov eax, dword ptr [edx]
+                mov R_IP, ax
+                shr eax, 16
+                mov R_CS, ax
+                jmp ControlTransfer_Done
+
+    Ret_Near:       
+                movzx edx, R_SP
+                movzx ecx, R_SS
+                shl ecx, 4
+                mov ax, word ptr MEMO[edx + ecx] ; rtn addr in ax
+
+                mov R_IP, ax
+                add di, 2 ; pop n + 2 byte
+                add R_SP, di
+                jmp ControlTransfer_Done
+    Ret_Far:
+                movzx edx, R_SP
+                movzx ecx, R_SS
+                shl ecx, 4
+                mov eax, dword ptr MEMO[edx + ecx]; rtn addr (high[16] = cs, low[16] = ip ) in eax
+
+                mov R_IP, ax
+                shr eax, 16
+                mov R_CS, ax
+
+                mov R_IP, ax
+                add di, 4 ; pop n + 4 byte
+                add R_SP, di
                 jmp ControlTransfer_Done
 ControlTransfer_Done:
                 ret
 ControlTransfer ENDP
 
 ; error case return address passed by ecx
+; flat ip in ebx
 ; success will use ret
 DataTransferMOV PROC
-                computeFlatIP ; in ebx
                 movzx eax, word ptr [ebx]
                 xor al, 10001000b
                 test al, 11111000b ; high 5 10001
@@ -580,6 +624,26 @@ DataTransferMOV PROC
 
 DataTransferMOV ENDP
 
+FlagInstruction PROC
+                mov al, byte ptr [ebx]
+                cmp al, 0F8h
+                je ProcessClc
+                cmp al, 0F9h
+                je ProcessStc
+                ret
+ProcessClc:     lahf
+                clc
+                sahf
+                jmp StcClcDone
+ProcessStc:     lahf
+                stc
+                sahf
+StcClcDone:     mov ax, [R_IP]
+                inc ax ; 1 byte long
+                mov R_IP, ax
+                ret
+FlagInstruction ENDP
+
 computeEffectiveAddressUnitTest MACRO
                 LOCAL callback, L1, L2, L3, L4, L5, L6
                 mov ebx, offset MEMO
@@ -630,6 +694,29 @@ computeEffectiveAddressUnitTest MACRO
                 ret
 ENDM
 
-run:
-                computeEffectiveAddressUnitTest
-end				run
+include term.asm
+include binloader.asm
+
+main PROC
+                INVOKE InitEmuScreen ; initialize terminal
+ExecLoop:
+                ; first, draw video memory
+                INVOKE WriteEmuScreen, ADDR [MEMO + 0b8000h]
+
+                ; execute next instruction
+                pushad
+
+                computeFlatIP
+                movzx eax, byte ptr [ebx]
+                cmp eax, 0F4h
+                je EmulatorHalt
+
+                ; TODO: fill instruction processing procedures here
+
+                popad
+
+EmulatorHalt:
+                INVOKE MessageBox, NULL, ADDR haltMsg, ADDR haltMsgTitle, MB_OK
+                INVOKE ExitProcess, 0
+main ENDP
+END main
