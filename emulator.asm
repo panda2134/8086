@@ -352,13 +352,22 @@ Jmp_Short_Rel8:
                 add di, 2 ; instruction length = 2 bytes
                 add R_IP, di ; ip += rel8 sign extended to 16bit (relative to next instruction)
                 jmp ControlTransfer_Done
-Call_Direct_Near:
-                lea edx, [ebx + 1]
-                lea esi, [ebx + 3]
-                jmp Call_Indirect_Near ; reuse code
+Call_Direct_Near: ; near direct is ip relative, cannot reuse indirect code
+                movzx edx, R_SP
+                movzx ecx, R_SS
+                sub R_SP, 2 ; write after read to avoid stall
+                shl ecx, 4
+
+                mov si, R_IP
+                add si, 3
+                mov word ptr MEMO[edx + ecx - 2], si
+                add si, word ptr [ebx + 1]
+                mov R_IP, si ; write back
+                jmp ControlTransfer_Done
 Jmp_Near_Rel16:
-                ; not reuse code
                 ; ip += displacement
+                mov si, R_IP
+                add si, 3
                 add si, word ptr [ebx + 1]
                 mov R_IP, si ; write back
                 jmp ControlTransfer_Done
