@@ -1,0 +1,15 @@
+     1                                  org 0x7c00
+     2                                  bits 16
+     3                                  
+     4 00000000 90                      nop
+     5                                  
+     6 00000001 B80000                  mov ax, 0
+     7 00000004 8ED8                    mov ds, ax
+     8 00000006 8ED0                    mov ss, ax
+     9 00000008 8EC0                    mov es, ax
+    10 0000000A BDC007                  mov bp, 7c0h
+    11 0000000D BC007C                  mov sp, 7c00h
+    12                                  
+    13 00000010 BB0000                  mov bx, 0
+    14 00000013 BF0000                  mov di, 0
+    15 00000016 FF9DF03F                call far [di+3ff0h]

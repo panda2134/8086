@@ -1,6 +1,6 @@
 #!/bin/sh
 
-nasm test.asm -f bin -o test.bin
+nasm test.asm -f bin -o test.bin -l test.lst
 if [[ $? -ne 0 ]]; then
     exit
 fi
