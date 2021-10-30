@@ -386,7 +386,10 @@ Call_Direct_Far:
                 mov R_CS, dx
                 jmp ControlTransfer_Done
 Call_Jmp_Indirect:
-                movzx ecx, byte ptr [ebx + 1]
+                mov ah, byte ptr [ebx + 1]
+                computeEffectiveAddress Control_Flow_EA_Done, 1
+Control_Flow_EA_Done:
+                movzx ecx, ah
                 shr ecx, 3
                 and ecx, 111b
                 cmp ecx, 010b ; check for xx010xxx
@@ -399,13 +402,27 @@ Call_Jmp_Indirect:
                 je Jmp_Indirect_Far
                 ret ; other instructions
 Call_Indirect_Near:
-                mov ah, byte ptr [ebx + 1]
-                computeEffectiveAddress Call_Indirect_Near_EA_Done, 1, R_CS
-Call_Indirect_Near_EA_Done:
-                sub edx, MEMO ; convert to virtual addr
-
+                mov ecx, esi
+                sub ecx, ebx ; esi-ebx is command length
+                add cx, R_IP ; add to R_IP to get offset of next instruction
+                pushEmulatorStack cx ; push return address
+Jmp_Indirect_Near:
+                mov cx, word ptr [edx] ; load offset into cx
+                mov R_IP, cx ; write back new ip
+                jmp ControlTransfer_Done
 Call_Indirect_Far:
-
+                mov cx, R_CS
+                pushEmulatorStack cx
+                mov ecx, esi
+                sub ecx, ebx
+                add cx, R_IP
+                pushEmulatorStack cx
+Jmp_Indirect_Far:
+                mov ecx, dword ptr [edx]
+                mov R_IP, cx
+                shr ecx, 16
+                mov R_CS, cx
+                jmp ControlTransfer_Done
 ControlTransfer_Done:
                 ret
 ControlTransfer ENDP
