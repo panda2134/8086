@@ -702,6 +702,10 @@ include binloader.asm
 
 main PROC
                 INVOKE InitEmuScreen ; initialize terminal
+                lea edi, [MEMO + 0b8000h]
+                mov ecx, 80*25
+                mov ax, 0
+                repnz lodsw          ; clrscr
 ExecLoop:
                 ; first, draw video memory
                 INVOKE WriteEmuScreen, ADDR [MEMO + 0b8000h]
