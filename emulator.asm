@@ -10,6 +10,7 @@ debugMsg        byte "%d %d %d %d", 0AH, 0DH, 0
 invalidOpMsg    byte "Invalid Operation!", 0Dh, 0Ah, 0
 REGB            label byte
 REGW            label word
+R_AL            label byte
 R_AX            word 0
 R_CX            word 0
 R_DX            word 0
@@ -19,6 +20,7 @@ R_BP            word 0
 R_SI            word 0
 R_DI            word 0
 
+REGS            label word                
 R_ES            word 0
 R_CS            word 0FFFFH
 R_SS            word 0
@@ -204,7 +206,7 @@ ArithLogic PROC
     ImmWithRegOrMem:
     RegWithRegOrMem:
                 computeEffectiveAddress SrcIsRegOrImm, 0
-    SrcIsRegOrImm:
+    SrcIsRegOrImm: ; not real src, d[1] decide real src
                 mov edi, esi ; copy "end of displacement(host)" for delta ip
                 sub edi, ebx ; compute delta ip, not yet count imm data
                 ; now ebx free
@@ -212,22 +214,21 @@ ArithLogic PROC
                 jnz SrcIsImm
                 ; Not Imm, Use Reg
                 movzx ebx, al ; first byte contains op[3]
-                shr ah, 3
-                movzx ecx, ah ; 000 mod[2] reg[3], moved before jump to reuse code
+                shr ah, 2 ; not fully shift to eliminate index scaling
+                movzx ecx, ah ; 00 mod[2] reg[3] x, moved before jump to reuse code
                 test al, 0001b ; decide 16bit or 8bit register
                 jnz REG_IsWordReg
                 ; 8bit register
-                and ecx, 0011b ; ecx = 000 mod[2] reg[3]
-                lea esi, REGB[ecx * 2] ; ACDB
-                movzx ecx, ah
-                and ecx, 0100b ; 0 -> L, 1 -> H
-                shr ecx, 2
-                add esi, ecx ; reg register "address" now in esi
+                and ecx, 0110b ; ecx = 00 mod[2] reg[3] x ; 0,2,4,6 -> ACDB 
+                movzx ebx, ah
+                and ebx, 1000b ; 0 -> L, 1 -> H
+                shr ebx, 3
+                lea esi, REGB[ecx + ebx] ; reg register host address now in esi
                 jmp SRC_DEST ; first byte still in al
     REG_IsWordReg:
                 ; 16bit register
-                and ecx, 0111b
-                lea esi, REGW[ecx * 2] ; reg register "address" now in esi
+                and ecx, 1110b
+                lea esi, REGW[ecx] ; reg register host address now in esi
                 jmp SRC_DEST ; first byte still in al
     SrcIsImm:
                 movzx ebx, ah ; second byte contains op[3]
@@ -250,25 +251,23 @@ ArithLogic PROC
                 ; first byte still in al
                 test al, 0001b ; decide 8bit or 16bit operand
                 jnz OperandW ; word operand
-                ; use 8bit partia reg for convenience
+                ; use 8bit partial reg for convenience
                 ; generally that will be slower because of partial register stalls
                 ; fortunately we don't need to read from cx or ecx, actually no stall occur
-                mov cl, byte ptr [edx] ; dest operand
-                mov ch, byte ptr [esi] ; src operand
+                mov al, byte ptr [esi] ; src operand
                 and ebx, 00111000b ; xx op[3] xxx, select bits, clear others
                 ; Not shift, eliminate index * 8 for OpTable
                 jmp dword ptr [OpTable + ebx]
     OperandW:
                 ; first byte still in al
-                movzx ecx, word ptr [edx]; only use cx
                 test al, 10000000b
                 jz NotSignExt ; Not Imm to r/m
                 test al, 0010b; s[1]
                 jz NotSignExt
-                movsx si, byte ptr [esi] ; src operand, no need to preserve its addr
+                movsx ax, byte ptr [esi] ; src operand, sign ext
                 jmp OperandWExec
     NotSignExt:
-                mov si, word ptr [esi]
+                mov ax, word ptr [esi] ; src operand
                 ; fall-through
     OperandWExec:
                 and ebx, 00111000b ; xx op[3] xxx, select bits, clear others
@@ -287,59 +286,53 @@ ArithLogic PROC
                 dword B_CMP, W_CMP
     ByteOp:
         B_CMP:
-                cmp cl, ch
+                cmp byte ptr [edx], al
                 jmp WriteFlags
         B_XOR:
-                xor cl, ch
-                jmp WriteBackB
+                xor byte ptr [edx], al
+                jmp WriteFlags
         B_SUB:
-                sub cl, ch
-                jmp WriteBackB
+                sub byte ptr [edx], al
+                jmp WriteFlags
         B_AND:
-                and cl, ch
-                jmp WriteBackB
+                and byte ptr [edx], al
+                jmp WriteFlags
         B_SBB:
-                sbb cl, ch
-                jmp WriteBackB
+                sbb byte ptr [edx], al
+                jmp WriteFlags
         B_ADC:
-                adc cl, ch
-                jmp WriteBackB      
+                adc byte ptr [edx], al
+                jmp WriteFlags
         B_OR:
-                or cl, ch
-                jmp WriteBackB
+                or byte ptr [edx], al
+                jmp WriteFlags
         B_ADD:
-                add cl, ch
-                ; fall-through
-    WriteBackB:
-                mov byte ptr [edx], cl
+                add byte ptr [edx], al
                 jmp WriteFlags
     WordOp:
         W_CMP:
-                cmp cx, si
+                cmp word ptr [edx], ax
                 jmp WriteFlags
         W_XOR:
-                xor cx, si
-                jmp WriteBackW
+                xor word ptr [edx], ax
+                jmp WriteFlags
         W_SUB:
-                sub cx, si
-                jmp WriteBackW
+                sub word ptr [edx], ax
+                jmp WriteFlags
         W_AND:
-                and cx, si
-                jmp WriteBackW
+                and word ptr [edx], ax
+                jmp WriteFlags
         W_SBB:
-                sbb cx, si
-                jmp WriteBackW
+                sbb word ptr [edx], ax
+                jmp WriteFlags
         W_ADC:
-                adc cx, si
-                jmp WriteBackW
+                adc word ptr [edx], ax
+                jmp WriteFlags
         W_OR:
-                or cx, si
-                jmp WriteBackW
+                or word ptr [edx], ax
+                jmp WriteFlags
         W_ADD:
-                add cx, si
-                ; fall-through
-    WriteBackW:
-                mov word ptr [edx], cx
+                add word ptr [edx], ax
                 ; fall-through
     WriteFlags:
                 lahf ; load flags into ah
@@ -490,50 +483,131 @@ DataTransferMOV PROC
                 xor al, 01110110b ; equiv to xor 11000110b at once
                 test al, 11111110b ; high 7 1100011
                 jz ImmToRegOrMem
-                jmp ecx
+                jmp ecx         
     ImmToRegOrMem:
-                or al, 10000000b ; set flag to reuse code
+                or al, 10000000b ; set flag to reuse code, repeat macro maybe a little faster
     RegWithRegOrMem:
                 computeEffectiveAddress SrcIsRegOrImm, 0
-    SrcIsRegOrImm:
+    SrcIsRegOrImm: ; not real src, d[1] decide real src
                 test al, 10000000b ; test flag
                 jnz SrcIsImm
                 ; Not Imm, Use Reg
-                shr ah, 3
-                movzx ecx, ah ; 000 mod[2] reg[3], moved before jump to reuse code
+                ; compute delta ip
+                sub esi, ebx
+                add R_IP, si
+                ; now ebx, esi free
+
+                shr ah, 2 ; not fully shift to eliminate index scaling
+                movzx ecx, ah ; 00 mod[2] reg[3] x, moved before jump to reuse code
+
+                test al, 0100b ; check if segment register
+                jnz SegReg
+
                 test al, 0001b ; decide 16bit or 8bit register
                 jnz REG_IsWordReg
                 ; 8bit register
-                and ecx, 0011b ; ecx = 000 mod[2] reg[3]
-                lea esi, REGB[ecx * 2] ; ACDB
-                movzx ecx, ah
-                and ecx, 0100b ; 0 -> L, 1 -> H
-                shr ecx, 2
-                add esi, ecx ; reg register "address" now in esi
-                test
+                and ecx, 0110b ; ecx = 00 mod[2] reg[3] x ; 0,2,4,6 -> ACDB
+                movzx ebx, ah
+                and ebx, 1000b ; 0 -> L, 1 -> H
+                shr ebx, 3
+
+                test al, 0010b ; d[1]
+                jnz ToByteReg
+                ; from byteReg
+                mov al, byte ptr REGB[ecx + ebx]
+                mov byte ptr [edx], al
+                ret
+    ToByteReg:
+                mov al, byte ptr [edx]
+                mov byte ptr REGB[ecx + ebx], al
+                ret
     REG_IsWordReg:
                 ; 16bit register
-                and ecx, 0111b
-                lea esi, REGW[ecx * 2] ; reg register "address" now in esi
-                jmp SRC_DEST ; first byte still in al
-    SrcIsImm:
-                ; compute delta ip
-                movzx ecx, al
-                and ecx, 0001b ; w[1]
-                lea edi, [esi + 1 + ecx] ; delta ip in edi
-                sub edi, ebx
-                add R_IP, di
-                mov esi, [esi]
-                mov [edx], esi
+                and ecx, 1110b
+                test al, 0010b ; d[1]
+                jnz ToWordReg
+                ; from WordReg
+                mov ax, word ptr REGW[ecx]
+                mov word ptr [edx], ax
                 ret
-    SRC_DEST:
-                test al, 0010b; d[1]
-                jz Operand ; d = 0 no need to exchange
-                xchg esi, edx ; put src in esi and dest in edx
-                ; fall-through
-
-    MemWithAccumulator:
+    ToWordReg:
+                mov ax, word ptr [edx]
+                mov word ptr REGW[ecx], ax
+                ret
+    SrcIsImm:
+                mov cx, word ptr [esi] ; read 2 byte at once to reuse code, may exceed 1M, but we are in a emulator
+                test al, 0001b ; w[1]
+                jnz WordSrcImm
+                ; Byte Imm
+                add esi, 1
+                sub esi, ebx
+                add R_IP, si
+                mov byte ptr [edx], cl
+                ret
+    WordSrcImm:
+                add esi, 2
+                sub esi, ebx
+                add R_IP, si
+                mov word ptr [edx], cx
+                ret
+    SegReg:
+                and ecx, 0110b ; reg[3] = 0 seg[2]
+                test al, 0010b ; d[1]
+                jnz ToSegReg
+                mov ax, word ptr REGS[ecx]
+                mov word ptr [edx], ax
+                ret
+    ToSegReg:
+                mov ax, word ptr [edx]
+                mov word ptr REGS[ecx], ax
+                ret
     ImmToReg:
+                test al, 1000b ; w[1]
+                jnz WordImmToReg
+                ; byte Imm
+                ; ebx + 1 already in ah, ebx free
+                add R_IP, 2
+                movzx ecx, al ; 0000 w[1] reg[3]
+                and ecx, 0011b
+                movzx ebx, al
+                and ebx, 0100b
+                shr ebx, 2
+                mov byte ptr REGB[ecx * 2 + ebx], 
+                ret
+    WordImmToReg:
+                add R_IP, 3
+                movzx ecx, al
+                and ecx, 0111b
+                mov ax, word ptr [ebx + 1]
+                mov word ptr REGW[ecx * 2], ax
+                ret
+    MemWithAccumulator:
+                add R_IP, 3
+                movzx edx, word ptr [ebx + 1]
+                movzx ecx, R_DS
+                shl ecx, 4
+                test al, 0010b ; 0 to accumulator
+                jnz FromAccumulator
+                mov bx, word ptr MEMO[edx + ecx] ; read 2 byte at once to reuse code, may exceed 1M, but we are in a emulator
+                test al, 0001b ; w[1]
+                jnz ToAX
+                ; to AL
+                mov R_AL, bl
+                ret
+    ToAX:
+                mov R_AX, bx
+                ret
+    FromAccumulator:
+                test al, 0001b ; w[1]
+                jnz FromAX
+                ; from AL
+                mov bl, R_AL
+                mov byte ptr MEMO[edx + ecx], bl
+                ret
+    FromAX:
+                mov bx, R_AX
+                mov word ptr MEMO[edx + ecx], bx
+                ret
 
 DataTransferMOV ENDP
 
