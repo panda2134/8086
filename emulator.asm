@@ -319,31 +319,32 @@ ControlTransfer PROC
                 je Call_Indirect
 Call_Direct_Near:
                 ; first, push rtn addr (16bit) into stack
+                sub R_SP, 2
+                ; todo: exception when R_SP < 2
                 movzx edx, R_SP
-                sub edx, 2
-                ; todo: exception when edx < 2
-                mov ecx, ebx
-                add ecx, 3 ; instruction length = 3 bytes
-                mov word ptr MEMO[edx], cx
-                ; write back new SP
-                mov R_SP, dx
+                movzx ecx, R_SS
+                lea edx, MEMO[edx + ecx]
+                mov cx, R_IP
+                add cx, 3 ; instruction length = 3 bytes
+                mov word ptr [edx], cx
                 ; then retrieve displacement
-                mov cx, word ptr [ebx + 1]
+                mov di, word ptr [ebx + 1]
                 ; ip += displacement
-                add R_IP, cx
+                add R_IP, di
                 jmp ControlTransfer_Done
 Call_Direct_Far:
                 ; push cs, then push rtn addr
+                sub R_SP, 4
                 movzx edx, R_SP
-                sub edx, 4
-                ; todo: exception when edx < 4
+                movzx ecx, R_SS
+                lea edx, MEMO[edx + ecx]
+
                 mov cx, R_IP
-                add cx, 5
-                mov word ptr MEMO[edx], cx
+                add cx, 5 ; instruction length = 3 bytes
+                mov word ptr [edx], cx
                 mov cx, R_CS
-                mov word ptr MEMO[edx + 2], cx
-                ; write back new SP
-                mov R_SP, dx
+                mov word ptr [edx + 2], cx
+
                 ; retrieve new disp and cs
                 mov cx, word ptr [ebx + 1]
                 mov dx, word ptr [ebx + 3]
