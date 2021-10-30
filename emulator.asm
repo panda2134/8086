@@ -45,7 +45,8 @@ MEMO            byte 1048576 DUP(?)
 ; mod[2] xxx r/m[3] passed by ah, start of instruction(host) passed by ebx
 ; when r/m is reg, need to pass word/byte in last bit of al
 ; not modify al, ah and ebx
-; effective address(host) returned by edx, end of displacement field(host) returned by esi
+; effective address(host) returned by edx,
+; end of displacement field(host) returned by esi
 computeEffectiveAddress MACRO LeaveLabel, DisableFallThroughLeave, SegmentType
                 ; MACRO local label
                 LOCAL NoDisplacement, MOD123, MOD23, RM_Decode, RM_Is1XX, RM_Is11X, AddDisplacment, MOD3, RM_IsWordReg
@@ -750,6 +751,47 @@ StcClcDone:
                 ret
 FlagInstruction ENDP
 
+XchgInstruction PROC
+                movzx eax, byte ptr [ebx]
+                cmp eax, 86h
+                je XchgRM8
+                cmp eax, 87h
+                je XchgRM16
+                cmp eax, 90h
+                jb ecx
+                cmp eax 97h
+                ja ecx
+XchgAX:         and eax, 111b
+                lea edi, REGW[eax*2]
+                mov ax, [R_AX]
+                xchg ax, word ptr [edi]
+                add R_IP, 1
+                ret
+XchgRM16:       mov ax, word ptr [ebx]
+                computeEffectiveAddress
+                shr ax, 8+3
+                and eax, 111b
+                lea edi, REGW[eax*2]
+                mov ax, [edi]
+                xchg ax, word ptr [edx]
+                jmp Xchg_UpdateIp
+XchgRM8:        mov ax, word ptr [ebx]
+                computeEffectiveAddress
+                shr ax, 8+2
+                and eax, 1110b
+                test eax, 1000b ; has high bit?
+                jz XchgRM8_Lower
+                or eax, 1
+XchgRM8_Lower:  and eax, 111b
+                lea edi, REGB[eax]
+                mov al, [edi]
+                xchg al, byte ptr [edx]
+Xchg_UpdateIp:  mov eax, esi
+                sub eax, ebx ; inst length
+                add R_IP, eax
+                ret
+XchgInstruction ENDP
+
 computeEffectiveAddressUnitTest MACRO
                 LOCAL callback, L1, L2, L3, L4, L5, L6
                 mov ebx, offset MEMO
@@ -838,7 +880,7 @@ ExecPushPop:
                 jmp DataTransferStack
 ExecXchg:       
                 mov ecx, OFFSET ExecUD
-                ; todo: jmp xchg
+                jmp XchgInstruction
 ExecUD:         
                 mov ecx, MB_ICONERROR
                 or ecx, MB_OK
