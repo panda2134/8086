@@ -6,7 +6,7 @@ includelib      msvcrt.lib
 printf          PROTO C :ptr byte, :VARARG
 
 .data
-szMsg			byte "%d %d",  0Dh, 0Ah, 0
+debugMsg        byte "%d %d %d %d", 0AH, 0DH, 0
 invalidOpMsg    byte "Invalid Operation!", 0Dh, 0Ah, 0
 REGB            label byte
 REGW            label word
@@ -32,17 +32,109 @@ MEMO            byte 1048576 DUP(?)
 MEMO_Guard      byte 00FFH
 
 .code
-
-mInitFlatAddrPcToEBX MACRO
-                movzx ebx, R_CS
-                shl ebx, 4
-                or ebx, R_IP    ; now ebx is the flat address of current instruction
+; mod[2] xxx r/m[3] passed by ah, start of instruction passed by ebx
+; effective address returned by edx, end of displacement returned by esi
+computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
+                ; MACRO local label
+                LOCAL NoDisplacement, MOD123, MOD23, RM_Decode, RM_Is1XX, RM_Is11X, AddDisplacment, MOD3, RM_IsWordReg
+                ; ah already = mod[2] reg[3] r/m[3] or mod[2] op[3] r/m[3]
+                mov cl, ah
+                shr cl, 6; mod
+                jnz MOD123
+                ; mod = 00
+                mov cl, ah ; mod[2] reg[3] r/m[3]
+                and cl, 0111b ; r/m[3]
+                cmp cl, 0110b ; check special case
+                jne NoDisplacement
+                ; r/m = 110 special case, 16bit displacement only
+                movzx edi, word ptr [ebx + 2]
+                lea esi, [ebx + 4] ; End of displacement
+                xor edx, edx ; clear edx for displacement only
+                jmp AddDisplacment
+NoDisplacement:
+                xor edi, edi ; common case, no displacement
+                lea esi, [ebx + 2] ; End of displacement
+                jmp RM_Decode
+MOD123:
+                cmp cl, 1
+                jne MOD23
+                ; mod = 01
+                movzx edi, byte ptr [ebx + 2] ; 8bit displacement
+                lea esi, [ebx + 3] ; End of displacement
+                jmp RM_Decode
+MOD23:
+                cmp cl, 2
+                jne MOD3
+                ; mod = 10
+                movzx edi, word ptr [ebx + 2] ; 16bit displacement
+                lea esi, [ebx + 4] ; End of displacement
+                ; fall-through
+RM_Decode:
+                ; displacement in edi
+                movzx ecx, ah ; mod[2] reg[3] r/m[3]
+                test ecx, 0100b
+                jnz RM_Is1XX
+                ; r/m = 0xx
+                and ecx, 0010b ; Base = b ? BP : BX, R_BP = R_BX + 4
+                movzx edx, word ptr R_BX[ecx * 2] ; actually word ptr is not needed
+                movzx ecx, ah ; mod[2] reg[3] r/m[3]
+                and ecx, 0001b ; Index = i ? DI : SI, R_DI = R_SI + 4
+                movzx ecx, word ptr R_SI[ecx * 2]
+                add edx, ecx
+                jmp AddDisplacment
+RM_Is1XX:
+                test ecx, 0010b
+                jnz RM_Is11X
+                ; r/m = 10x
+                and ecx, 0001b ; Index = i ? DI : SI, R_DI = R_SI + 4
+                movzx edx, word ptr R_SI[ecx * 2]
+                jmp AddDisplacment
+RM_Is11X:
+                ; r/m = 11x
+                and ecx, 0001b ; Base = b ? BP : BX, R_BP = R_BX + 4
+                movzx edx, word ptr R_BX[ecx * 4]
+                ; fall-through
+AddDisplacment:
+                add edx, edi ; (virtual) effective address now in edx
+                ; now edi free
+                add edx, offset MEMO
+                movzx ecx, R_DS ; (virtual) data segment, may be override, TODO
+                add edx, ecx
+                jmp LeaveLabel
+MOD3:
+                ; r/m = register
+                lea esi, [ebx + 2] ; End of displacement (No Displacement)
+                ; now ebx free
+                movzx ecx, ah ; mod[2] reg[3] r/m[3], moved before jump to reuse code
+                test al, 0001b ; first byte still in al, decide 16bit or 8bit register
+                jnz RM_IsWordReg
+                ; 8bit register
+                and ecx, 0011b
+                lea edx, REGB[ecx * 2] ; ACDB
+                movzx ecx, ah
+                and ecx, 0100b ; 0 -> L, 1 -> H
+                shr ecx, 2
+                add edx, ecx ; register "address" now in edx
+                jmp LeaveLabel
+RM_IsWordReg:
+                ; 16bit register
+                and ecx, 0111b
+                lea edx, REGW[ecx * 2] ; register "address" now in edx
+                ; fall-through
+IF DisableFallThroghLeave
+                jmp LeaveLabel
+ENDIF
 ENDM
 
-; origin pc (as flat addr) pass in ebx, new pc return in edi (as flat addr)
-; will be calculated and handled inside the proc
+; use eax
+computeFlatIP MACRO
+                movzx eax, R_CS
+                movzx ebx, R_IP
+                lea ebx, [ebx + eax * 4]
+ENDM
+
 ArithLogic PROC
-                mInitFlatAddrPcToEBX
+                computeFlatIP
                 movzx eax, word ptr [ebx]; read 2 bytes at once for later use, may exceed 1M, but we are in a emulator
                 test eax, 11000100b ; only test low byte -- the first byte
                 jz RegWithRegOrMem; must be 00xxx0xx, No Imm Op
@@ -63,92 +155,9 @@ ImmToAcc:
                 jmp Operand
 ImmWithRegOrMem:
 RegWithRegOrMem:
-ModDecode:
-                ; ah already = mod[2] reg[3] r/m[3] or mod[2] op[3] r/m[3]
-                mov cl, ah
-                shr cl, 6; mod
-                jnz MOD123
-                ; mod = 00
-                mov cl, ah ; mod[2] reg[3] r/m[3]
-                and cl, 0111b ; r/m[3]
-                cmp cl, 0110b ; check special case
-                jne NoDisplacement
-                ; r/m = 110 special case, 16bit displacement only
-                movzx edi, word ptr [ebx + 2]
-                lea esi, [ebx + 4] ; Start of Imm data
-                jmp AddDisplacment
-NoDisplacement:
-                xor edi, edi ; common case, no displacement
-                lea esi, [ebx + 2] ; Start of Imm data
-                jmp E_ADDR
-MOD123:
-                cmp cl, 1
-                jne MOD23
-                ; mod = 01
-                movzx edi, byte ptr [ebx + 2] ; 8bit displacement
-                lea esi, [ebx + 3] ; Start of Imm data
-                jmp E_ADDR
-MOD23:
-                cmp cl, 2
-                jne MOD3
-                ; mod = 10
-                movzx edi, word ptr [ebx + 2] ; 16bit displacement
-                lea esi, [ebx + 4] ; Start of Imm data
-                ; fall-through
-E_ADDR:
-                ; displacement in edi
-                movzx ecx, ah ; mod[2] reg[3] r/m[3]
-                test ecx, 0100b
-                jnz RM_Is1XX
-                ; r/m = 0xx
-                and ecx, 0010b ; Base = b ? BP : BX, R_BP = R_BX + 4
-                movzx edx, word ptr R_BX[ecx * 2] ; actually word ptr is not needed
-                movzx ecx, ah ; mod[2] reg[3] r/m[3]
-                and ecx, 0001b ; Index = i ? DI : SI, R_DI = R_SI + 4
-                movzx ecx, word ptr R_SI[ecx * 2]
-                add edx, ecx
-                jmp AddDisplacment
-RM_Is1XX:
-                test ecx, 0001b
-                jnz RM_Is11X
-                ; r/m = 10x
-                and ecx, 0001b ; Index = i ? DI : SI, R_DI = R_SI + 4
-                movzx edx, word ptr R_SI[ecx * 2]
-                jmp AddDisplacment
-RM_Is11X:
-                ; r/m = 11x
-                and ecx, 0001b ; Base = b ? BP : BX, R_BP = R_BX + 4
-                movzx edx, word ptr R_BX[ecx * 4]
-                ; fall-through
-AddDisplacment:
-                add edx, edi ; (virtual) effective address now in edx
-                ; now edi free
-                add edx, offset MEMO
-                movzx ecx, R_DS ; (virtual) data segment, may be override, TODO
-                add edx, ecx
-                jmp SrcIsRegOrImm
-MOD3:
-                ; r/m = register
-                lea esi, [ebx + 2] ; Start of Imm data (No Displacement)
-                ; now ebx free
-                movzx ecx, ah ; mod[2] reg[3] r/m[3], moved before jump to reuse code
-                test al, 0001b ; first byte still in al, decide 16bit or 8bit register
-                jnz RM_IsWordReg
-                ; 8bit register
-                and ecx, 0011b
-                lea edx, REGB[ecx * 2] ; ACDB
-                movzx ecx, ah
-                and ecx, 0100b ; 0 -> L, 1 -> H
-                shr ecx, 2
-                add edx, ecx ; register "address" now in edx
-                jmp SrcIsRegOrImm
-RM_IsWordReg:
-                ; 16bit register
-                and ecx, 0111b
-                lea edx, REGW[ecx * 2] ; register "address" now in edx
-                ; fall-through
+                computeEffectiveAddress SrcIsRegOrImm, 0
 SrcIsRegOrImm:
-                mov edi, esi; save "Start of Imm data" for new pc
+                mov edi, esi; save "End of displacement" for new ip
                 test al, 10000000b ; first byte still in al
                 jnz SrcIsImm
                 ; Not Imm, Use Reg
@@ -172,11 +181,11 @@ REG_IsWordReg:
                 jmp SRC_DEST ; first byte still in al
 SrcIsImm:
                 movzx ebx, ah ; second byte contains op[3]
-                ; compute new pc
+                ; compute new ip
                 xor ecx, ecx
                 cmp al, 10000011b ; 100000 s[1] w[1], 00: +1, 01: +2, 10: +1, 11: +1
                 sete cl
-                lea edi, [edi + 1 + ecx]
+                lea edi, [edi + 1 + ecx] ; new ip in edi
                 ; (virtual) imm data address already in esi
                 add esi, offset MEMO
                 movzx ecx, word ptr R_CS
@@ -286,12 +295,9 @@ WriteBackW:
 WriteFlags:
                 lahf ; load flags into ah
                 mov R_FLAGS, ah
-
-                mov ecx, R_CS
-                shl ecx, 4
-                sub edi, ecx
-                mov R_IP, di
-
+                computeFlatIP
+                sub edi, ebx
+                add R_IP, di
                 ret
 ArithLogic ENDP
 
@@ -299,7 +305,7 @@ ArithLogic ENDP
 ; origin pc pass in ebx, new pc return in edi
 ; NOTE: cs can be changed!
 ControlTransfer PROC
-                mInitFlatAddrPcToEBX
+                computeFlatIP
                 movzx eax, byte ptr [ebx] ; read 1 byte into ax, and check type of instruction
                 cmp ax, 11101000b   ; parse instruction type
                 je Call_Direct_Near
@@ -314,7 +320,7 @@ Call_Direct_Near:
                 ; todo: exception when edx < 2
                 mov ecx, ebx
                 add ecx, 3 ; instruction length = 3 bytes
-                mov [MEMO+edx], cx
+                mov word ptr [MEMO + edx], cx
                 ; write back new SP
                 mov R_SP, dx
                 ; then retrieve displacement
@@ -329,9 +335,9 @@ Call_Direct_Far:
                 ; todo: exception when edx < 4
                 mov cx, R_IP
                 add cx, 5
-                mov [MEMO+edx], cx
+                mov word ptr [MEMO + edx], cx
                 mov cx, R_CS
-                mov [MEMO+edx+2], cx
+                mov word ptr [MEMO + 2 +edx], cx
                 ; write back new SP
                 mov R_SP, dx
                 ; retrieve new disp and cs
@@ -347,7 +353,7 @@ Call_Indirect:
                 and ecx, 111b
                 cmp ecx, 010b ; check for xx010xxx
                 je Call_Indirect_Near
-                cmp ecx 011b ; check for xx011xxx
+                cmp ecx, 011b ; check for xx011xxx
                 je Call_Indirect_Far
                 ret ; other instructions
 Call_Indirect_Near:
@@ -357,8 +363,55 @@ ControlTransfer_Done:
                 ret
 ControlTransfer ENDP
 
-
-run:
-                invoke printf, offset szMsg, eax, ebx
+computeEffectiveAddressUnitTest MACRO
+                LOCAL callback, L1, L2, L3, L4, L5, L6
+                mov ebx, offset MEMO
+                mov byte ptr [ebx + 2], 0
+                mov byte ptr [ebx + 3], 1
+                mov ah, 00000110b
+                push offset L1
+                computeEffectiveAddress callback, 1
+L1:
+                mov ebx, offset MEMO
+                mov byte ptr [ebx + 2], 10
+                mov byte ptr [ebx + 3], 0
+                mov ah, 00000110b
+                push offset L2
+                computeEffectiveAddress callback, 1
+L2:
+                mov ebx, offset MEMO
+                mov ah, 00000000b
+                mov R_BX, 4
+                mov R_SI, 3
+                push offset L3
+                computeEffectiveAddress callback, 1
+L3:
+                mov ebx, offset MEMO
+                mov ah, 10000000b
+                mov byte ptr [ebx + 2], 10
+                mov byte ptr [ebx + 3], 0
+                mov R_BX, 4
+                mov R_SI, 3
+                push offset L4
+                computeEffectiveAddress callback, 1
+L4:
+                mov ebx, offset MEMO
+                mov ah, 00000101b
+                mov R_DI, 5
+                push offset L5
+                computeEffectiveAddress callback, 1
+L5:
+                mov ebx, offset MEMO
+                mov ah, 00000111b
+                mov R_BP, 9
+                push offset L6
+                computeEffectiveAddress callback, 1
+L6:
                 ret
+callback:
+                INVOKE printf, offset debugMsg, offset MEMO, edx, esi, 0
+                ret
+ENDM
+run:
+                computeEffectiveAddressUnitTest
 end				run
