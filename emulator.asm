@@ -126,11 +126,11 @@ computeEffectiveAddress MACRO LeaveLabel, DisableFallThroghLeave
     ENDIF
 ENDM
 
-; use ebx
+; ebx is flat addr in host machine
 computeFlatIP MACRO
                 movzx eax, R_CS
                 movzx ebx, R_IP
-                lea ebx, [ebx + eax * 16]
+                lea ebx, MEMO[ebx + eax * 16]
 ENDM
 
 ; error case return address passed by ecx
@@ -324,6 +324,7 @@ Call_Direct_Near:
                 mov ecx, ebx
                 add ecx, 3 ; instruction length = 3 bytes
                 mov word ptr [MEMO + edx], cx
+                mov R_IP, cx ; ip is next instruction
                 ; write back new SP
                 mov R_SP, dx
                 ; then retrieve displacement
@@ -360,6 +361,7 @@ Call_Indirect:
                 je Call_Indirect_Far
                 ret ; other instructions
 Call_Indirect_Near:
+
 Call_Indirect_Far:
 
 ControlTransfer_Done:
