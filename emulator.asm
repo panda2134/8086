@@ -454,15 +454,15 @@ ControlTransfer PROC
                 shl ecx, 4
 
                 mov si, R_IP
-                add si, 3
+                add si, 3 ; instruction length = 3 bytes
                 mov word ptr MEMO[edx + ecx - 2], si
                 add si, word ptr [ebx + 1]
                 mov R_IP, si ; write back
-                ret
+                ret ; not reuse code
     Jmp_Near_Rel16:
                 ; ip += displacement
                 mov si, R_IP
-                add si, 3
+                add si, 3 ; instruction length = 3 bytes
                 add si, word ptr [ebx + 1]
                 mov R_IP, si ; write back
                 ret
@@ -498,14 +498,15 @@ ControlTransfer PROC
         NotMatch:
                 jmp ecx
     Call_Indirect_Near:
-                movzx edx, R_SP
+                sub esi, ebx ; esi-ebx is command length
+                add si, R_IP ; add to R_IP to get offset of next instruction
+                ; now ebx free
+                ; push ip
+                movzx ebx, R_SP
                 movzx ecx, R_SS
                 sub R_SP, 2 ; write after read to avoid stall
                 shl ecx, 4
-
-                sub esi, ebx ; esi-ebx is command length
-                add si, R_IP ; add to R_IP to get offset of next instruction
-                mov word ptr MEMO[edx + ecx - 2], si
+                mov word ptr MEMO[ebx + ecx - 2], si
                 ; fall-through
     Jmp_Indirect_Near:
                 mov ax, word ptr [edx] ; load offset into cx
@@ -513,18 +514,19 @@ ControlTransfer PROC
                 ret
 
     Call_Indirect_Far:
+                sub esi, ebx ; esi-ebx is command length
+                add si, R_IP ; add to R_IP to get offset of next instruction
+                ; now ebx free
                 ; push cs, then push ip
-                movzx edx, R_SP
+                movzx ebx, R_SP
                 movzx ecx, R_SS
                 sub R_SP, 4 ; write after read to avoid stall
                 shl ecx, 4
 
-                lea edx, MEMO[edx + ecx - 2]
-                mov di, R_CS
-                mov word ptr [edx], di
-                sub esi, ebx ; esi-ebx is command length
-                add si, R_IP ; add to R_IP to get offset of next instruction
-                mov word ptr [edx - 2], si
+                movzx eax, R_CS
+                shl eax, 16
+                or eax, esi ; avoid partial register write then read whole register
+                mov dword ptr MEMO[ebx + ecx - 4], eax
                 ; fall-through
     Jmp_Indirect_Far:
                 mov eax, dword ptr [edx]
