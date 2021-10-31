@@ -940,7 +940,7 @@ computeEffectiveAddressUnitTest MACRO
     L5:
                 mov ebx, offset MEMO
                 mov ah, 00000111b
-                mov R_BP, 9
+                mov R_BX, 9
                 push offset L6
                 computeEffectiveAddress callback, 1, R_DS
     L6:
