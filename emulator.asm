@@ -44,6 +44,8 @@ R_IP            word 7c00H
 
 MEMO_Guard      byte 00FFH
 
+ScreenRefreshCounter word 0
+
 .data?
 MEMO            byte 1048576 DUP(?)
 
@@ -949,8 +951,10 @@ main PROC
                 mov ax, 0
                 rep lodsw          ; clrscr
 ExecLoop:       ; first, draw video memory
+                add ScreenRefreshCounter, 1
+                jno RefreshedScreen
                 INVOKE WriteEmuScreen, ADDR [MEMO + 0b8000h]
-
+RefreshedScreen:
                 ; execute next instruction
                 pushad
 
@@ -992,6 +996,7 @@ Executed:
                 jmp ExecLoop
 
 EmulatorHalt:
+                INVOKE WriteEmuScreen, ADDR [MEMO + 0b8000h] ; update screen
                 INVOKE MessageBox, NULL, ADDR haltMsg, ADDR haltMsgTitle, MB_OK
                 INVOKE ExitProcess, 0
                 ret
