@@ -154,6 +154,33 @@ computeFlatIP MACRO
                 lea ebx, MEMO[ebx + eax]
 ENDM
 
+; use ah
+modifyFlagsInstruction MACRO instruction, protectEAX
+                IF protectEAX
+                    push eax
+                ENDIF
+
+                mov ah, R_FLAGS
+                sahf
+
+                IF protectEAX
+                    pop eax
+                ENDIF
+
+                instruction
+
+                IF protectEAX
+                    push eax
+                ENDIF
+
+                lahf
+                mov R_FLAGS, ah
+
+                IF protectEAX
+                    pop eax
+                ENDIF
+ENDM
+
 ; error case return address passed by ecx
 ; success will use ret
 ; flat ip in ebx
@@ -271,10 +298,10 @@ ArithLogic PROC
                 and byte ptr [edx], al
                 jmp WriteFlags
         B_SBB:
-                sbb byte ptr [edx], al
+                modifyFlagsInstruction <sbb byte ptr [edx], al>, 0 ; do not use ah here
                 jmp WriteFlags
         B_ADC:
-                adc byte ptr [edx], al
+                modifyFlagsInstruction <adc byte ptr [edx], al>, 0 ; do not use ah here
                 jmp WriteFlags
         B_OR:
                 or byte ptr [edx], al
@@ -296,10 +323,10 @@ ArithLogic PROC
                 and word ptr [edx], ax
                 jmp WriteFlags
         W_SBB:
-                sbb word ptr [edx], ax
+                modifyFlagsInstruction <sbb word ptr [edx], ax>, 1 ; we use ah!
                 jmp WriteFlags
         W_ADC:
-                adc word ptr [edx], ax
+                modifyFlagsInstruction <adc word ptr [edx], ax>, 1
                 jmp WriteFlags
         W_OR:
                 or word ptr [edx], ax
@@ -313,15 +340,6 @@ ArithLogic PROC
                 add R_IP, di
                 ret
 ArithLogic ENDP
-
-; use ah
-modifyFlagsInstruction MACRO instruction
-                mov ah, R_FLAGS
-                sahf
-                instruction
-                lahf
-                mov R_FLAGS, ah
-ENDM
 
 Arith_INC_DEC PROC ; note: inc and dec is partial flags writer we need to load flags before inc or dec
                 movzx eax, word ptr [ebx] ; read 2 byte at once, may exceed 1M, but we are in a emulator
