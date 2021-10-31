@@ -2,10 +2,18 @@
 .model flat, stdcall
 option casemap:none
 
+include         windows.inc
+include         kernel32.inc
+include         user32.inc
+
+includelib      user32.lib
+includelib      kernel32.lib
 includelib      msvcrt.lib
+
 printf          PROTO C :ptr byte, :VARARG
 
 .data
+floppyPath      byte "./test_bin/c.img", 0
 haltMsgTitle    byte "Halted", 0
 haltMsg         byte "HLT is executed; since interrupt is not supported, the emulator will now exit.", 0
 UDMsgTitle      byte "Undefined Instruction", 0
@@ -26,7 +34,7 @@ R_DI            word 0
 
 REGS            label word                
 R_ES            word 0
-R_CS            word 0FFFFH
+R_CS            word 7c0h ; mbr
 R_SS            word 0
 R_DS            word 0
 
@@ -851,11 +859,12 @@ include term.asm
 include binloader.asm
 
 main PROC
+                INVOKE LoadBinaryIntoEmulator, ADDR MEMO, ADDR floppyPath
                 INVOKE InitEmuScreen ; initialize terminal
                 lea edi, [MEMO + 0b8000h]
                 mov ecx, 80*25
                 mov ax, 0
-                repnz lodsw          ; clrscr
+                rep lodsw          ; clrscr
 ExecLoop:       ; first, draw video memory
                 INVOKE WriteEmuScreen, ADDR [MEMO + 0b8000h]
 
