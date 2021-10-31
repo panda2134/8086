@@ -577,9 +577,12 @@ ControlTransfer ENDP
 DataTransferMOV PROC
                 movzx eax, word ptr [ebx] ; read 2 byte at once, may exceed 1M, but we are in a emulator
                 xor al, 10001000b
-                test al, 11111000b ; high 5 10001
-                jz RegWithRegOrMem; 10001xxx
-                xor al, 00101000b ; equiv to xor 10100000b at once
+                test al, 11111100b ; high 6 100010
+                jz RegWithRegOrMem ; 100010xx
+                xor al, 00000100b ; equiv to xor 10001100b at once
+                test al, 11111101b ; 
+                jz SegRegWithRegOrMem; 100011x0
+                xor al, 00101100b ; equiv to xor 10100000b at once
                 test al, 11111100b ; high 6 101000
                 jz MemWithAccumulator
                 xor al, 00010000b ; equiv to xor 10110000b at once
@@ -591,11 +594,13 @@ DataTransferMOV PROC
                 jmp ecx         
     ImmToRegOrMem:
                 or al, 10000000b ; set flag to reuse code, repeat macro maybe a little faster
+                jmp WithRegOrMem
+    SegRegWithRegOrMem:
+                or al, 0001b ; SegReg case don't have w[1], manually set lowest bit
+                ; fall-through
     RegWithRegOrMem:
-                ; notice ImmToRegOrMem case al high 7 bit is clear by xor, then highest bit set by or
-                test al, 0100b ; check if segment register
-                setnz cl
-                or al, cl ; segment register always 16bit dest, but origin al lowest bit is 1
+                ; fall-through
+    WithRegOrMem:
                 computeEffectiveAddress SrcIsRegOrImm, 0, R_DS
     SrcIsRegOrImm: ; not real src, d[1] decide real src
                 test al, 10000000b ; test flag
