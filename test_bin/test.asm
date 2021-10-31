@@ -16,6 +16,7 @@ hlt:
 	hlt
 
 cont:
+	jmp fib ; for debugging
 	mov sp, 1000h
 	mov al, '.'
 
@@ -128,7 +129,7 @@ boxloop2:
 	dec cl
 	jnz boxloop2
 
-
+fib:
 	mov word [cursor], 80 * 7 + 4
 	xor ax, ax
 	mov dx, 1
