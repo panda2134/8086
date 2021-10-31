@@ -2,8 +2,31 @@
 
 ## 小组分工
 
-+ 刘江宜：TUI界面，模拟器显存渲染，控制流指令，测试程序，调试
-+ 游嘉诚：其余所有指令，代码优化，整理8086机器码文档
++ 刘江宜：
+
+  CALL, JMP, RET, Jcc, STC, CLC, HLT
+
+  TUI界面（含模拟器显存渲染）
+
+  模拟器加载可执行文件
+
+  测试程序
+
+  OllyDbg调试
+
++ 游嘉诚：
+
+  Effective Address Computation及其单元测试
+
+  ADD, OR, ADC, SBB, AND, SUB, XOR, CMP
+
+  INC, DEC, MOV, XCHG, PUSH, POP
+
+  代码优化
+
+  代码人工静态检查
+
+  整理8086机器码文档
 
 ## 开发环境
 
@@ -61,5 +84,48 @@
 + 多次重复的小段逻辑提炼为宏
 + Effective Address计算几乎使用了所有寄存器，为减少call+ret的额外开销（需访问内存）、使代码具有局域性对指令预取和缓存友好，以宏的形式实现代码复用
 
+由于Effective Address计算被多处使用且逻辑较为复杂，为了降低测试与调试难度，我们为Effective Address计算编写了单元测试。
 
+实践表明，除了一处Specification整理错误导致的单元测试用例错误，Effective Address计算在通过单元测试后没有出现任何错误。
 
+> Specification
+>
+> r/m
+>
+> 000 BX + SI + Disp
+>
+> 001 BX + DI + Disp
+>
+> 010 BP + SI + Disp
+>
+> 011 BP + DI + Disp
+>
+> 100 SI + Disp
+>
+> 101 DI + Disp
+>
+> 110 BP + Disp
+>
+> 111 BX + Disp
+>
+> 正确整理
+>
+> r/m = 0,b,i
+>
+> r/m = 1,0,i
+>
+> r/m = 1,1,~b
+>
+> Base = b ? BP : BX
+>
+> Index = i ? DI : SI
+>
+> 错误整理
+>
+> r/m = 0,b,i
+>
+> r/m = 1,0,i
+>
+> r/m = 1,1,b
+>
+> 若不细致，很难发现仅有Base的情况和Base、Index兼具的情况对Base的Encode竟然是相反的
