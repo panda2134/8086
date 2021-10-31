@@ -936,8 +936,11 @@ ExecLoop:       ; first, draw video memory
 
                 push offset Executed
 
-                mov ecx, OFFSET ExecControl
+                mov ecx, OFFSET ExecIncDec
                 jmp ArithLogic
+ExecIncDec:
+                mov ecx, OFFSET ExecControl
+                jmp Arith_INC_DEC
 ExecControl:    
                 mov ecx, OFFSET ExecData
                 jmp ControlTransfer
