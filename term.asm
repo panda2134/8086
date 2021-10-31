@@ -67,16 +67,13 @@ _loop_end:
     ret
 WriteEmuScreen ENDP
 
-loadStatusColor MACRO colorType
+loadStatusColor MACRO colorType, dest
     IFIDN <colorType>, <running>
-        mov eax, BACKGROUND_GREEN
-        or eax, BACKGROUND_INTENSITY
+        mov dest, BACKGROUND_GREEN or BACKGROUND_INTENSITY
         EXITM
     ENDIF
     IFIDN <colorType>, <paused>
-        mov eax, BACKGROUND_GREEN
-        or eax, BACKGROUND_RED 
-        or eax, BACKGROUND_INTENSITY
+        mov dest, BACKGROUND_GREEN or BACKGROUND_RED or BACKGROUND_INTENSITY
         EXITM
     ENDIF
     echo Error: Unknown status
