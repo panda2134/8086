@@ -583,6 +583,10 @@ DataTransferMOV PROC
     ImmToRegOrMem:
                 or al, 10000000b ; set flag to reuse code, repeat macro maybe a little faster
     RegWithRegOrMem:
+                ; notice ImmToRegOrMem case al high 7 bit is clear by xor, then highest bit set by or
+                test al, 0100b ; check if segment register
+                setnz cl
+                or al, cl ; segment register always 16bit dest, but origin al lowest bit is 1
                 computeEffectiveAddress SrcIsRegOrImm, 0, R_DS
     SrcIsRegOrImm: ; not real src, d[1] decide real src
                 test al, 10000000b ; test flag
