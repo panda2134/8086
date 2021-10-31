@@ -221,7 +221,7 @@ printloop:
 printchr:
 	push di
 	mov di, [cursor]
-    shl di, 1
+    add di, [cursor] ; no shl, sorry!
 	mov si, ds
     push ax
     mov ax, 0xb800
@@ -230,7 +230,7 @@ printchr:
 	mov [di], al
     mov byte [di+1], 0x0F
 	mov ds, si
-    shr di, 1
+    sub di, [cursor]
 	inc di
 	mov [cursor], di
 	pop di
