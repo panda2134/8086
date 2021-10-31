@@ -9,7 +9,7 @@
      9 0000000C BC0080                  mov sp, 8000h
     10                                  
     11                                  start:
-    12 0000000F 81FC007C                	cmp sp, 7c00h
+    12 0000000F 81FC0080                	cmp sp, 8000h
     13 00000013 7401                    	jz cont
     14                                  
     15                                  hlt:

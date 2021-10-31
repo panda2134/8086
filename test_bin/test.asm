@@ -9,7 +9,7 @@ mov bp, 8000h
 mov sp, 8000h
 
 start:
-	cmp sp, 7c00h
+	cmp sp, 8000h
 	jz cont
 
 hlt:
