@@ -128,7 +128,7 @@
    128 000000E3 FEC9                    	dec cl
    129 000000E5 75EB                    	jnz boxloop2
    130                                  
-   131                                  
+   131                                  fib:
    132 000000E7 C706[F401]3402          	mov word [cursor], 80 * 7 + 4
    133 000000ED 31C0                    	xor ax, ax
    134 000000EF BA0100                  	mov dx, 1
