@@ -173,7 +173,7 @@ ArithLogic PROC
                 computeEffectiveAddress SrcIsRegOrImm, 0, R_DS
     SrcIsRegOrImm: ; not real src, d[1] decide real src
                 mov edi, esi ; copy "end of displacement(host)" for delta ip
-                sub edi, ebx ; compute delta ip, not yet count imm data
+                sub edi, ebx ; compute delta ip, not yet count imm data, will be handled in SrcIsImm
                 ; now ebx free
                 test al, 10000000b ; first byte still in al
                 jnz SrcIsImm
