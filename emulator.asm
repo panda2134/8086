@@ -384,6 +384,7 @@ GenerateJmpConditional MACRO jmp_cc
                 mov ah, R_FLAGS
                 sahf
                 jmp_cc Jmp_Short_Rel8_Inner
+                add R_IP, 2 ; instruction length = 2 bytes
                 ret
 ENDM
 
