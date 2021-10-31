@@ -28,6 +28,13 @@
 
   整理8086机器码文档
 
+## 效果展示
+
+- 运算测试，从 [CodeGolf](https://codegolf.stackexchange.com/questions/4732/emulate-an-intel-8086-cpu) 下载并汇编得到（对显示稍做了修改以适应真实显存布局），测试效果如下图：
+  ![test](./docs/test.png)
+- 显存颜色测试，用于测试虚拟 CGA 80x25 显示的颜色效果，如下图：
+  ![color](./docs/color.png)
+
 ## 开发环境
 
 - Windows 10
