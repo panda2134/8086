@@ -23,8 +23,8 @@ debugMsg        byte "%d %d %d %d", 0AH, 0DH, 0
 invalidOpMsg    byte "Invalid Operation!", 0Dh, 0Ah, 0
 statusRunning   byte "Running", 0
 statusPaused    byte "Paused", ' ', 0
-statusLineFmt1  byte "%s ", 9 dup(' '), "AX=%04hX CX=%04hX DX=%04hX BX=%04hX SP=%04hX BP=%04hX SI=%04hX DI=%04hX", 0
-statusLineFmt2  byte "any key = step, c = continue", 4 dup(' '), "IP=%04hX FLAGS=%02hX ES=%04hX CS=%04hX SS=%04hX DS=%04hX", 0
+statusLineFmt1  byte "%s ", 9 dup(' '), "AX=%04X CX=%04X DX=%04X BX=%04X SP=%04X BP=%04X SI=%04X DI=%04X", 0
+statusLineFmt2  byte "any key = step, c = continue", 4 dup(' '), "IP=%04X FLAGS=%02X ES=%04X CS=%04X SS=%04X DS=%04X", 0
 lineBuf1        byte 128 dup(?)
 lineBuf2        byte 128 dup(?)
 running         byte 0
@@ -967,8 +967,25 @@ ExecLoop:
                 test eax, eax
                 mov ebx, OFFSET statusPaused
                 cmovz esi, ebx
-                INVOKE crt_sprintf, ADDR lineBuf1, ADDR statusLineFmt1, esi, R_AX, R_CX, R_DX, R_BX, R_SP, R_BP, R_SI, R_DI
-                INVOKE crt_sprintf, ADDR lineBuf2, ADDR statusLineFmt2, R_IP, R_FLAGS, R_ES, R_CS, R_SS, R_DS
+                FOR x, <R_DI, R_SI, R_BP, R_SP, R_BX, R_DX, R_CX, R_AX>
+                    movzx eax, x
+                    push eax
+                ENDM
+                push esi
+                push offset statusLineFmt1
+                push offset lineBuf1
+                call crt_sprintf
+                add esp, 44
+
+                FOR x, <R_DS, R_SS, R_CS, R_ES, R_FLAGS, R_IP>
+                    movzx eax, x
+                    push eax
+                ENDM
+                push offset statusLineFmt2
+                push offset lineBuf2
+                call crt_sprintf
+                add esp, 32
+
                 movzx eax, running
                 test eax, eax
                 jnz Exec_TextAttr_Running
