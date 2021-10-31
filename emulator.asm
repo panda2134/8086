@@ -334,6 +334,7 @@ Arith_INC_DEC PROC ; note: inc and dec is partial flags writer we need to load f
                 jz RegOrMem
                 jmp ecx
     RegOnly:
+                add R_IP, 1 ; 1byte long
                 test al, 00001000b
                 jnz RegOnlyDEC
                 ; other bits in eax already clear
@@ -352,6 +353,8 @@ Arith_INC_DEC PROC ; note: inc and dec is partial flags writer we need to load f
                 ; note: al lowest bit already w[1]
                 computeEffectiveAddress INC_DEC_ComputeEA_Done, 0, R_DS
         INC_DEC_ComputeEA_Done:
+                sub esi, ebx
+                add R_IP, si
                 test ah, 00001000b
                 jnz RegOrMemDEC
                 ; INC
