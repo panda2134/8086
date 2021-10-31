@@ -5,11 +5,11 @@
      5 00000003 8ED8                    mov ds, ax
      6 00000005 8ED0                    mov ss, ax
      7 00000007 8EC0                    mov es, ax
-     8 00000009 BDC007                  mov bp, 7c0h
-     9 0000000C BC007C                  mov sp, 7c00h
+     8 00000009 BD0080                  mov bp, 8000h
+     9 0000000C BC0080                  mov sp, 8000h
     10                                  
     11                                  start:
-    12 0000000F 81FC007C                	cmp sp, 7c00h
+    12 0000000F 81FC0080                	cmp sp, 8000h
     13 00000013 7401                    	jz cont
     14                                  
     15                                  hlt:
