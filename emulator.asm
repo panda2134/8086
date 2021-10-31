@@ -13,7 +13,7 @@ includelib      msvcrt.lib
 printf          PROTO C :ptr byte, :VARARG
 
 .data
-floppyPath      byte "./test_bin/xchg.bin", 0
+floppyPath      byte "./test_bin/c.img", 0
 haltMsgTitle    byte "Halted", 0
 haltMsg         byte "HLT is executed; since interrupt is not supported, the emulator will now exit.", 0
 UDMsgTitle      byte "Undefined Instruction", 0
@@ -857,6 +857,7 @@ XchgAX:
                 ; other bits in eax already clear
                 add R_IP, 1
                 mov bx, R_AX
+                and eax, 0FFh
                 xchg bx, word ptr REGW[eax * 2]
                 mov R_AX, bx
                 ret
