@@ -112,7 +112,7 @@ computeEffectiveAddress MACRO LeaveLabel, DisableFallThroughLeave, SegmentType
                 jmp AddDisplacment
     RM_Is11X:
                 ; r/m = 1,1,~b
-                and ecx, 0001b ; Base = b ? BX : BP, R_BP = R_BX + 4
+                and ecx, 0001b ; Base = b ? BP : BX, R_BP = R_BX + 4
                 xor ecx, 1
                 movzx edx, word ptr R_BX[ecx * 4]
                 ; fall-through
