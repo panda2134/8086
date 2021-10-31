@@ -16,11 +16,6 @@ hlt:
 	hlt
 
 cont:
-	mov ax, 1
-	mov dx, 2
-	xchg ax, dx
-	cmp ax, 2
-	jne hlt ; for debugging
 	mov sp, 1000h
 	mov al, '.'
 

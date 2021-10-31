@@ -16,282 +16,281 @@
     16 00000015 F4                      	hlt
     17                                  
     18                                  cont:
-    19 00000016 E9D100                  	jmp fib ; for debugging
-    20 00000019 BC0010                  	mov sp, 1000h
-    21 0000001C B02E                    	mov al, '.'
-    22                                  
-    23 0000001E BB0000                  	mov bx, 0
-    24 00000021 4B                      	dec bx
-    25 00000022 83FBFF                  	cmp bx, 0ffffh
-    26 00000025 75EE                    	jnz hlt
-    27 00000027 E85101                  	call printchr
-    28                                  
-    29 0000002A 43                      	inc bx
-    30 0000002B 75E8                    	jnz hlt
-    31 0000002D E84B01                  	call printchr
-    32                                  
-    33 00000030 31C9                    	xor cx, cx
-    34 00000032 09CB                    	or bx, cx
-    35 00000034 75DF                    	jnz hlt
-    36 00000036 72DD                    	jc hlt
-    37 00000038 E84001                  	call printchr
-    38                                  
-    39 0000003B B90080                  	mov cx, 08000h
-    40 0000003E 39D9                    	cmp cx, bx
-    41 00000040 76D3                    	jbe hlt
-    42 00000042 E83601                  	call printchr
-    43                                  
-    44 00000045 01CB                    	add bx, cx
-    45 00000047 72CC                    	jc hlt
-    46 00000049 E82F01                  	call printchr
-    47                                  
-    48 0000004C 01DB                    	add bx, bx
-    49 0000004E 83D100                  	adc cx, 0
-    50 00000051 79C2                    	jns hlt
-    51 00000053 72C0                    	jc hlt
-    52 00000055 51                      	push cx
-    53 00000056 83E101                  	and cx, 1
-    54 00000059 74BA                    	jz hlt
-    55 0000005B E81D01                  	call printchr
-    56                                  
-    57 0000005E 59                      	pop cx
-    58 0000005F F9                      	stc
-    59 00000060 BB0080                  	mov bx, 08000h
-    60 00000063 19D9                    	sbb cx, bx
-    61 00000065 75AE                    	jnz hlt
-    62 00000067 72AC                    	jc hlt
-    63 00000069 E80F01                  	call printchr
-    64                                  	
-    65 0000006C E80000                  	call calltest
-    66                                  calltest:
-    67 0000006F 5B                      	pop bx
-    68 00000070 81FB[6F00]              	cmp bx, calltest
-    69 00000074 759F                    	jnz hlt
-    70 00000076 81FC0010                	cmp sp, 1000h
-    71 0000007A 7599                    	jnz hlt
-    72 0000007C E8FC00                  	call printchr
-    73                                  
-    74 0000007F BB[8400]                	mov bx, rettest
-    75 00000082 53                      	push bx
-    76 00000083 C3                      	ret
-    77                                  rettest:
-    78 00000084 81FC0010                	cmp sp, 1000h
-    79 00000088 758B                    	jnz hlt
-    80 0000008A E8EE00                  	call printchr
-    81                                  
-    82 0000008D 90                      	nop
-    83 0000008E 90                      	nop
-    84 0000008F 90                      	nop
-    85 00000090 EB01                    	jmp cont1
-    86 00000092 F4                      	hlt
-    87                                  
-    88                                  cont1:
-    89 00000093 E80A01                  	call printnl
-    90                                  
-    91 00000096 B8[E901]                	mov ax, hello
-    92 00000099 E8CA00                  	call print
-    93 0000009C E80101                  	call printnl
+    19 00000016 BC0010                  	mov sp, 1000h
+    20 00000019 B02E                    	mov al, '.'
+    21                                  
+    22 0000001B BB0000                  	mov bx, 0
+    23 0000001E 4B                      	dec bx
+    24 0000001F 83FBFF                  	cmp bx, 0ffffh
+    25 00000022 75F1                    	jnz hlt
+    26 00000024 E85101                  	call printchr
+    27                                  
+    28 00000027 43                      	inc bx
+    29 00000028 75EB                    	jnz hlt
+    30 0000002A E84B01                  	call printchr
+    31                                  
+    32 0000002D 31C9                    	xor cx, cx
+    33 0000002F 09CB                    	or bx, cx
+    34 00000031 75E2                    	jnz hlt
+    35 00000033 72E0                    	jc hlt
+    36 00000035 E84001                  	call printchr
+    37                                  
+    38 00000038 B90080                  	mov cx, 08000h
+    39 0000003B 39D9                    	cmp cx, bx
+    40 0000003D 76D6                    	jbe hlt
+    41 0000003F E83601                  	call printchr
+    42                                  
+    43 00000042 01CB                    	add bx, cx
+    44 00000044 72CF                    	jc hlt
+    45 00000046 E82F01                  	call printchr
+    46                                  
+    47 00000049 01DB                    	add bx, bx
+    48 0000004B 83D100                  	adc cx, 0
+    49 0000004E 79C5                    	jns hlt
+    50 00000050 72C3                    	jc hlt
+    51 00000052 51                      	push cx
+    52 00000053 83E101                  	and cx, 1
+    53 00000056 74BD                    	jz hlt
+    54 00000058 E81D01                  	call printchr
+    55                                  
+    56 0000005B 59                      	pop cx
+    57 0000005C F9                      	stc
+    58 0000005D BB0080                  	mov bx, 08000h
+    59 00000060 19D9                    	sbb cx, bx
+    60 00000062 75B1                    	jnz hlt
+    61 00000064 72AF                    	jc hlt
+    62 00000066 E80F01                  	call printchr
+    63                                  	
+    64 00000069 E80000                  	call calltest
+    65                                  calltest:
+    66 0000006C 5B                      	pop bx
+    67 0000006D 81FB[6C00]              	cmp bx, calltest
+    68 00000071 75A2                    	jnz hlt
+    69 00000073 81FC0010                	cmp sp, 1000h
+    70 00000077 759C                    	jnz hlt
+    71 00000079 E8FC00                  	call printchr
+    72                                  
+    73 0000007C BB[8100]                	mov bx, rettest
+    74 0000007F 53                      	push bx
+    75 00000080 C3                      	ret
+    76                                  rettest:
+    77 00000081 81FC0010                	cmp sp, 1000h
+    78 00000085 758E                    	jnz hlt
+    79 00000087 E8EE00                  	call printchr
+    80                                  
+    81 0000008A 90                      	nop
+    82 0000008B 90                      	nop
+    83 0000008C 90                      	nop
+    84 0000008D EB01                    	jmp cont1
+    85 0000008F F4                      	hlt
+    86                                  
+    87                                  cont1:
+    88 00000090 E80A01                  	call printnl
+    89                                  
+    90 00000093 B8[E601]                	mov ax, hello
+    91 00000096 E8CA00                  	call print
+    92 00000099 E80101                  	call printnl
+    93                                  
     94                                  
-    95                                  
-    96 0000009F B030                    	mov al, 30h
-    97                                  ascii_loop:
-    98 000000A1 E8D700                  	call printchr
-    99 000000A4 FEC0                    	inc al
-   100 000000A6 3C7F                    	cmp al, 127
-   101 000000A8 75F7                    	jnz ascii_loop
+    95 0000009C B030                    	mov al, 30h
+    96                                  ascii_loop:
+    97 0000009E E8D700                  	call printchr
+    98 000000A1 FEC0                    	inc al
+    99 000000A3 3C7F                    	cmp al, 127
+   100 000000A5 75F7                    	jnz ascii_loop
+   101                                  
    102                                  
-   103                                  
-   104 000000AA B023                    	mov al, '#'
-   105 000000AC C706[F701]9001          	mov word [cursor], 80 * 5
-   106 000000B2 B150                    	mov cl, 80
-   107                                  
-   108                                  boxloop:
-   109 000000B4 E8C400                  	call printchr
-   110 000000B7 FEC9                    	dec cl
-   111 000000B9 75F9                    	jnz boxloop
-   112 000000BB 813E[F701]E001          	cmp word [cursor], 480
-   113 000000C1 750A                    	jnz cont2
-   114 000000C3 B150                    	mov cl, 80
-   115 000000C5 C706[F701]8007          	mov word [cursor], 80 * 24
-   116 000000CB EBE7                    	jmp boxloop
-   117                                  
-   118                                  cont2:
-   119                                  
-   120 000000CD C706[F701]E001          	mov word [cursor], 80 * 6
-   121 000000D3 B112                    	mov cl, 18
-   122                                  	
-   123                                  boxloop2:
-   124 000000D5 E8A300                  	call printchr
-   125 000000D8 E8A000                  	call printchr
-   126 000000DB 8306[F701]4C            	add word [cursor], 76
-   127 000000E0 E89800                  	call printchr
-   128 000000E3 E89500                  	call printchr
-   129 000000E6 FEC9                    	dec cl
-   130 000000E8 75EB                    	jnz boxloop2
-   131                                  
-   132                                  fib:
-   133 000000EA C706[F701]3402          	mov word [cursor], 80 * 7 + 4
-   134 000000F0 31C0                    	xor ax, ax
-   135 000000F2 BA0100                  	mov dx, 1
-   136 000000F5 B91100                  	mov cx, 17
-   137                                  
-   138                                  fibloop:
-   139 000000F8 01C2                    	add dx, ax
-   140 000000FA E8B100                  	call printnum
-   141 000000FD 50                      	push ax
-   142 000000FE B82000                  	mov ax, ' '
-   143 00000101 E87700                  	call printchr
-   144 00000104 58                      	pop ax
-   145 00000105 92                      	xchg ax, dx
-   146 00000106 49                      	dec cx
-   147 00000107 75EF                    	jnz fibloop
+   103 000000A7 B023                    	mov al, '#'
+   104 000000A9 C706[F401]9001          	mov word [cursor], 80 * 5
+   105 000000AF B150                    	mov cl, 80
+   106                                  
+   107                                  boxloop:
+   108 000000B1 E8C400                  	call printchr
+   109 000000B4 FEC9                    	dec cl
+   110 000000B6 75F9                    	jnz boxloop
+   111 000000B8 813E[F401]E001          	cmp word [cursor], 480
+   112 000000BE 750A                    	jnz cont2
+   113 000000C0 B150                    	mov cl, 80
+   114 000000C2 C706[F401]8007          	mov word [cursor], 80 * 24
+   115 000000C8 EBE7                    	jmp boxloop
+   116                                  
+   117                                  cont2:
+   118                                  
+   119 000000CA C706[F401]E001          	mov word [cursor], 80 * 6
+   120 000000D0 B112                    	mov cl, 18
+   121                                  	
+   122                                  boxloop2:
+   123 000000D2 E8A300                  	call printchr
+   124 000000D5 E8A000                  	call printchr
+   125 000000D8 8306[F401]4C            	add word [cursor], 76
+   126 000000DD E89800                  	call printchr
+   127 000000E0 E89500                  	call printchr
+   128 000000E3 FEC9                    	dec cl
+   129 000000E5 75EB                    	jnz boxloop2
+   130                                  
+   131                                  fib:
+   132 000000E7 C706[F401]3402          	mov word [cursor], 80 * 7 + 4
+   133 000000ED 31C0                    	xor ax, ax
+   134 000000EF BA0100                  	mov dx, 1
+   135 000000F2 B91100                  	mov cx, 17
+   136                                  
+   137                                  fibloop:
+   138 000000F5 01C2                    	add dx, ax
+   139 000000F7 E8B100                  	call printnum
+   140 000000FA 50                      	push ax
+   141 000000FB B82000                  	mov ax, ' '
+   142 000000FE E87700                  	call printchr
+   143 00000101 58                      	pop ax
+   144 00000102 92                      	xchg ax, dx
+   145 00000103 49                      	dec cx
+   146 00000104 75EF                    	jnz fibloop
+   147                                  
    148                                  
-   149                                  
-   150 00000109 C706[F701]D402          	mov word [cursor], 80 * 9 + 4
-   151 0000010F B90000                  	mov cx, 0
-   152                                  
-   153                                  squareloop:
-   154 00000112 89C8                    	mov ax, cx
-   155 00000114 E83F00                  	call calcsq
-   156 00000117 E89400                  	call printnum
-   157 0000011A B82000                  	mov ax, ' '
-   158 0000011D E85B00                  	call printchr
-   159 00000120 41                      	inc cx
-   160 00000121 83F914                  	cmp cx, 20
-   161 00000124 76EC                    	jbe squareloop
-   162                                  	
+   149 00000106 C706[F401]D402          	mov word [cursor], 80 * 9 + 4
+   150 0000010C B90000                  	mov cx, 0
+   151                                  
+   152                                  squareloop:
+   153 0000010F 89C8                    	mov ax, cx
+   154 00000111 E83F00                  	call calcsq
+   155 00000114 E89400                  	call printnum
+   156 00000117 B82000                  	mov ax, ' '
+   157 0000011A E85B00                  	call printchr
+   158 0000011D 41                      	inc cx
+   159 0000011E 83F914                  	cmp cx, 20
+   160 00000121 76EC                    	jbe squareloop
+   161                                  	
+   162                                  
    163                                  
-   164                                  
-   165                                  	%define count 100
-   166 00000126 C706[F701]7403          	mov word [cursor], 80 * 11 + 4
-   167 0000012C BB0200                  	mov bx, 2
-   168                                  
-   169                                  primeloop:
-   170 0000012F 808F[F901]00            	or byte [memory + bx], 0
-   171 00000134 7519                    	jnz primecont
-   172 00000136 89D8                    	mov ax, bx
-   173 00000138 E87300                  	call printnum
-   174 0000013B B82000                  	mov ax, ' '
-   175 0000013E E83A00                  	call printchr
-   176 00000141 89DF                    	mov di, bx
-   177                                  primeloop_inner:
-   178 00000143 808D[F901]01            	or byte [memory + di], 1
-   179 00000148 01DF                    	add di, bx
-   180 0000014A 83FF65                  	cmp di, count + 1
-   181 0000014D 76F4                    	jbe primeloop_inner
-   182                                  
-   183                                  primecont:
-   184 0000014F 43                      	inc bx
-   185 00000150 83FB64                  	cmp bx, count
-   186 00000153 76DA                    	jbe primeloop
+   164                                  	%define count 100
+   165 00000123 C706[F401]7403          	mov word [cursor], 80 * 11 + 4
+   166 00000129 BB0200                  	mov bx, 2
+   167                                  
+   168                                  primeloop:
+   169 0000012C 808F[F601]00            	or byte [memory + bx], 0
+   170 00000131 7519                    	jnz primecont
+   171 00000133 89D8                    	mov ax, bx
+   172 00000135 E87300                  	call printnum
+   173 00000138 B82000                  	mov ax, ' '
+   174 0000013B E83A00                  	call printchr
+   175 0000013E 89DF                    	mov di, bx
+   176                                  primeloop_inner:
+   177 00000140 808D[F601]01            	or byte [memory + di], 1
+   178 00000145 01DF                    	add di, bx
+   179 00000147 83FF65                  	cmp di, count + 1
+   180 0000014A 76F4                    	jbe primeloop_inner
+   181                                  
+   182                                  primecont:
+   183 0000014C 43                      	inc bx
+   184 0000014D 83FB64                  	cmp bx, count
+   185 00000150 76DA                    	jbe primeloop
+   186                                  
    187                                  
-   188                                  
-   189 00000155 F4                      	hlt
+   188 00000152 F4                      	hlt
+   189                                  
    190                                  
-   191                                  
-   192                                  calcsq:
-   193 00000156 89C3                    	mov bx, ax
-   194 00000158 31D2                    	xor dx, dx
-   195 0000015A 09DB                    	or bx, bx
-   196                                  calcsqloop:
-   197 0000015C 7405                    	jz calcsqfinish
-   198 0000015E 01C2                    	add dx, ax
-   199 00000160 4B                      	dec bx
-   200 00000161 EBF9                    	jmp calcsqloop
-   201                                  calcsqfinish:
-   202 00000163 89D0                    	mov ax, dx
-   203 00000165 C3                      	ret
+   191                                  calcsq:
+   192 00000153 89C3                    	mov bx, ax
+   193 00000155 31D2                    	xor dx, dx
+   194 00000157 09DB                    	or bx, bx
+   195                                  calcsqloop:
+   196 00000159 7405                    	jz calcsqfinish
+   197 0000015B 01C2                    	add dx, ax
+   198 0000015D 4B                      	dec bx
+   199 0000015E EBF9                    	jmp calcsqloop
+   200                                  calcsqfinish:
+   201 00000160 89D0                    	mov ax, dx
+   202 00000162 C3                      	ret
+   203                                  
    204                                  
-   205                                  
-   206                                  print:
-   207 00000166 53                      	push bx
-   208 00000167 52                      	push dx
-   209 00000168 89C3                    	mov bx, ax
-   210                                  printloop:
-   211 0000016A 8A17                    	mov dl, [bx]
-   212 0000016C 43                      	inc bx
-   213 0000016D 86C2                    	xchg al, dl
-   214 0000016F E80900                  	call printchr
-   215 00000172 86C2                    	xchg al, dl
-   216 00000174 20D2                    	and dl, dl
-   217 00000176 75F2                    	jnz printloop
-   218 00000178 5A                      	pop dx
-   219 00000179 5B                      	pop bx
-   220 0000017A C3                      	ret
-   221                                  
-   222                                  printchr:
-   223 0000017B 57                      	push di
-   224 0000017C 8B3E[F701]              	mov di, [cursor]
-   225 00000180 033E[F701]                  add di, [cursor] ; no shl, sorry!
-   226 00000184 8CDE                    	mov si, ds
-   227 00000186 50                          push ax
-   228 00000187 B800B8                      mov ax, 0xb800
-   229 0000018A 8ED8                    	mov ds, ax
-   230 0000018C 58                          pop ax
-   231 0000018D 8805                    	mov [di], al
-   232 0000018F C645010F                    mov byte [di+1], 0x0F
-   233 00000193 8EDE                    	mov ds, si
-   234 00000195 2B3E[F701]                  sub di, [cursor]
-   235 00000199 47                      	inc di
-   236 0000019A 893E[F701]              	mov [cursor], di
-   237 0000019E 5F                      	pop di
-   238 0000019F C3                      	ret
-   239                                  
-   240                                  printnl:
-   241 000001A0 8B3E[F701]              	mov di, [cursor]
-   242                                  printnlloop:
-   243 000001A4 83EF50                  	sub di, 80
-   244 000001A7 79FB                    	jns printnlloop
-   245 000001A9 293E[F701]              	sub [cursor], di
-   246 000001AD C3                      	ret
-   247                                  
-   248                                  printnum:
-   249 000001AE 53                      	push bx
-   250 000001AF 50                      	push ax
-   251 000001B0 B330                    	mov bl, '0'
-   252 000001B2 83F809                  	cmp ax, 9
-   253 000001B5 762A                    	jbe numcont_1digit
-   254 000001B7 83F863                  	cmp ax, 99
-   255 000001BA 7613                    	jbe numloop_2digit
-   256                                  numloop_3digit:
-   257 000001BC 83E864                  	sub ax, 100
-   258 000001BF FEC3                    	inc bl
-   259 000001C1 83F863                  	cmp ax, 99
-   260 000001C4 77F6                    	jnbe numloop_3digit
-   261 000001C6 86D8                    	xchg bl, al
-   262 000001C8 E8B0FF                  	call printchr
-   263 000001CB 86D8                    	xchg bl, al
-   264 000001CD B330                    	mov bl, '0'
-   265                                  numloop_2digit:
-   266 000001CF 83F809                  	cmp ax, 9
-   267 000001D2 7606                    	jbe numcont_2digit
-   268 000001D4 83E80A                  	sub ax, 10
-   269 000001D7 43                      	inc bx
-   270 000001D8 EBF5                    	jmp numloop_2digit
-   271                                  numcont_2digit:
-   272 000001DA 86C3                    	xchg al, bl
-   273 000001DC E89CFF                  	call printchr
-   274 000001DF 88D8                    	mov al, bl
-   275                                  numcont_1digit:
-   276 000001E1 0430                    	add al, '0'
-   277 000001E3 E895FF                  	call printchr
-   278 000001E6 58                      	pop ax
-   279 000001E7 5B                      	pop bx
-   280 000001E8 C3                      	ret
-   281                                  
-   282                                  	
-   283                                  
-   284                                  hello:
-   285 000001E9 48656C6C6F2C20776F-     	db 'Hello, world!', 0
-   285 000001F2 726C642100         
-   286                                  
-   287                                  cursor:
-   288 000001F7 0000                    	dw 0
-   289                                  
-   290                                  memory:
+   205                                  print:
+   206 00000163 53                      	push bx
+   207 00000164 52                      	push dx
+   208 00000165 89C3                    	mov bx, ax
+   209                                  printloop:
+   210 00000167 8A17                    	mov dl, [bx]
+   211 00000169 43                      	inc bx
+   212 0000016A 86C2                    	xchg al, dl
+   213 0000016C E80900                  	call printchr
+   214 0000016F 86C2                    	xchg al, dl
+   215 00000171 20D2                    	and dl, dl
+   216 00000173 75F2                    	jnz printloop
+   217 00000175 5A                      	pop dx
+   218 00000176 5B                      	pop bx
+   219 00000177 C3                      	ret
+   220                                  
+   221                                  printchr:
+   222 00000178 57                      	push di
+   223 00000179 8B3E[F401]              	mov di, [cursor]
+   224 0000017D 033E[F401]                  add di, [cursor] ; no shl, sorry!
+   225 00000181 8CDE                    	mov si, ds
+   226 00000183 50                          push ax
+   227 00000184 B800B8                      mov ax, 0xb800
+   228 00000187 8ED8                    	mov ds, ax
+   229 00000189 58                          pop ax
+   230 0000018A 8805                    	mov [di], al
+   231 0000018C C645010F                    mov byte [di+1], 0x0F
+   232 00000190 8EDE                    	mov ds, si
+   233 00000192 2B3E[F401]                  sub di, [cursor]
+   234 00000196 47                      	inc di
+   235 00000197 893E[F401]              	mov [cursor], di
+   236 0000019B 5F                      	pop di
+   237 0000019C C3                      	ret
+   238                                  
+   239                                  printnl:
+   240 0000019D 8B3E[F401]              	mov di, [cursor]
+   241                                  printnlloop:
+   242 000001A1 83EF50                  	sub di, 80
+   243 000001A4 79FB                    	jns printnlloop
+   244 000001A6 293E[F401]              	sub [cursor], di
+   245 000001AA C3                      	ret
+   246                                  
+   247                                  printnum:
+   248 000001AB 53                      	push bx
+   249 000001AC 50                      	push ax
+   250 000001AD B330                    	mov bl, '0'
+   251 000001AF 83F809                  	cmp ax, 9
+   252 000001B2 762A                    	jbe numcont_1digit
+   253 000001B4 83F863                  	cmp ax, 99
+   254 000001B7 7613                    	jbe numloop_2digit
+   255                                  numloop_3digit:
+   256 000001B9 83E864                  	sub ax, 100
+   257 000001BC FEC3                    	inc bl
+   258 000001BE 83F863                  	cmp ax, 99
+   259 000001C1 77F6                    	jnbe numloop_3digit
+   260 000001C3 86D8                    	xchg bl, al
+   261 000001C5 E8B0FF                  	call printchr
+   262 000001C8 86D8                    	xchg bl, al
+   263 000001CA B330                    	mov bl, '0'
+   264                                  numloop_2digit:
+   265 000001CC 83F809                  	cmp ax, 9
+   266 000001CF 7606                    	jbe numcont_2digit
+   267 000001D1 83E80A                  	sub ax, 10
+   268 000001D4 43                      	inc bx
+   269 000001D5 EBF5                    	jmp numloop_2digit
+   270                                  numcont_2digit:
+   271 000001D7 86C3                    	xchg al, bl
+   272 000001D9 E89CFF                  	call printchr
+   273 000001DC 88D8                    	mov al, bl
+   274                                  numcont_1digit:
+   275 000001DE 0430                    	add al, '0'
+   276 000001E0 E895FF                  	call printchr
+   277 000001E3 58                      	pop ax
+   278 000001E4 5B                      	pop bx
+   279 000001E5 C3                      	ret
+   280                                  
+   281                                  	
+   282                                  
+   283                                  hello:
+   284 000001E6 48656C6C6F2C20776F-     	db 'Hello, world!', 0
+   284 000001EF 726C642100         
+   285                                  
+   286                                  cursor:
+   287 000001F4 0000                    	dw 0
+   288                                  
+   289                                  memory:
+   290                                  
    291                                  
    292                                  
-   293                                  
-   294 000001F9 00<rep 5h>              times 512-2-($-$$) db 0
-   295 000001FE 55                      db 0x55
-   296 000001FF AA                      db 0xaa
+   293 000001F6 00<rep 8h>              times 512-2-($-$$) db 0
+   294 000001FE 55                      db 0x55
+   295 000001FF AA                      db 0xaa

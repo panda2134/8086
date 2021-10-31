@@ -1,0 +1,19 @@
+     1                                  org 0x7c00
+     2                                  bits 16
+     3                                  
+     4 00000000 B80000                  mov ax, 0
+     5 00000003 8ED8                    mov ds, ax
+     6 00000005 8ED0                    mov ss, ax
+     7 00000007 8EC0                    mov es, ax
+     8 00000009 BD0080                  mov bp, 8000h
+     9 0000000C BC0080                  mov sp, 8000h
+    10                                  
+    11 0000000F B80100                  mov ax, 1
+    12 00000012 BA0200                  mov dx, 2
+    13 00000015 92                      xchg ax, dx
+    14 00000016 83F802                  cmp ax, 2
+    15 00000019 F4                      hlt
+    16                                  
+    17 0000001A 00<rep 1E4h>            times 512-2-($-$$) db 0
+    18 000001FE 55                      db 0x55
+    19 000001FF AA                      db 0xaa
