@@ -199,7 +199,7 @@ ArithLogic PROC
                 movzx ebx, ah ; second byte contains op[3]
                 ; compute delta ip
                 xor ecx, ecx
-                cmp al, 10000011b ; 100000 s[1] w[1], 00: +1, 01: +2, 10: +1, 11: +1
+                cmp al, 10000001b ; 100000 s[1] w[1], 00: +1, 01: +2, 10: +1, 11: +1
                 sete cl
                 lea edi, [edi + 1 + ecx] ; delta ip in edi
                 ; imm data host address(end of displacement) already in esi
