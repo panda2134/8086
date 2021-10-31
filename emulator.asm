@@ -5,6 +5,7 @@ option casemap:none
 include         windows.inc
 include         kernel32.inc
 include         user32.inc
+include         msvcrt.inc
 
 includelib      user32.lib
 includelib      kernel32.lib
@@ -13,13 +14,20 @@ includelib      msvcrt.lib
 printf          PROTO C :ptr byte, :VARARG
 
 .data
-floppyPath      byte "./test_bin/c.img", 0
+floppyPath      byte "./floppy.img", 0
 haltMsgTitle    byte "Halted", 0
 haltMsg         byte "HLT is executed; since interrupt is not supported, the emulator will now exit.", 0
 UDMsgTitle      byte "Undefined Instruction", 0
 UDMsg           byte "Encountered an undefined instruction. (#UD)", 0
 debugMsg        byte "%d %d %d %d", 0AH, 0DH, 0
 invalidOpMsg    byte "Invalid Operation!", 0Dh, 0Ah, 0
+statusRunning   byte "Running", 0
+statusPaused    byte "Paused", ' ', 0
+statusLineFmt1  byte "%s ", 9 dup(' '), "AX=%04hX CX=%04hX DX=%04hX BX=%04hX SP=%04hX BP=%04hX SI=%04hX DI=%04hX", 0
+statusLineFmt2  byte "any key = step, c = continue", 4 dup(' '), "IP=%04hX FLAGS=%02hX ES=%04hX CS=%04hX SS=%04hX DS=%04hX", 0
+lineBuf1        byte 128 dup(?)
+lineBuf2        byte 128 dup(?)
+running         byte 0
 REGB            label byte
 REGW            label word
 R_AL            label byte
@@ -44,7 +52,8 @@ R_IP            word 7c00H
 
 MEMO_Guard      byte 00FFH
 
-ScreenRefreshCounter word 0
+statusTextAttr dword 0
+screenRefreshCounter word 0
 
 .data?
 MEMO            byte 1048576 DUP(?)
@@ -951,9 +960,41 @@ main PROC
                 mov ecx, 80*25
                 mov ax, 0
                 rep lodsw          ; clrscr
-ExecLoop:       ; first, draw video memory
-                add ScreenRefreshCounter, 1
+ExecLoop:       
+                ; draw video memory
+                movzx eax, running
+                mov esi, OFFSET statusRunning
+                test eax, eax
+                mov ebx, OFFSET statusPaused
+                cmovz esi, ebx
+                INVOKE crt_sprintf, ADDR lineBuf1, ADDR statusLineFmt1, esi, R_AX, R_CX, R_DX, R_BX, R_SP, R_BP, R_SI, R_DI
+                INVOKE crt_sprintf, ADDR lineBuf2, ADDR statusLineFmt2, R_IP, R_FLAGS, R_ES, R_CS, R_SS, R_DS
+                movzx eax, running
+                test eax, eax
+                jnz Exec_TextAttr_Running
+                loadStatusColor paused
+                jmp Exec_TextAttr_End
+Exec_TextAttr_Running:
+                loadStatusColor running
+Exec_TextAttr_End:
+                mov statusTextAttr, eax
+
+                movzx eax, running
+                test eax, eax
+                jnz ExecRunning
+
+                INVOKE WriteEmuScreen, ADDR [MEMO + 0b8000h]
+                INVOKE WriteStatusLine, ADDR lineBuf1, ADDR lineBuf2, statusTextAttr
+                ; check keyboard input
+                INVOKE crt__getch
+                cmp eax, 'c' ; 'c' is pressed
+                jne RefreshedScreen
+                mov running, 1
+                jmp RefreshedScreen
+ExecRunning:    
+                add screenRefreshCounter, 1
                 jno RefreshedScreen
+                INVOKE WriteStatusLine, ADDR lineBuf1, ADDR lineBuf2, statusTextAttr
                 INVOKE WriteEmuScreen, ADDR [MEMO + 0b8000h]
 RefreshedScreen:
                 ; execute next instruction
@@ -963,7 +1004,6 @@ RefreshedScreen:
                 movzx eax, byte ptr [ebx]
                 cmp eax, 0F4h
                 je EmulatorHalt
-
                 push offset Executed
 
                 mov ecx, OFFSET ExecIncDec
@@ -997,6 +1037,7 @@ Executed:
                 jmp ExecLoop
 
 EmulatorHalt:
+                INVOKE WriteStatusLine, ADDR lineBuf1, ADDR lineBuf2, statusTextAttr
                 INVOKE WriteEmuScreen, ADDR [MEMO + 0b8000h] ; update screen
                 INVOKE MessageBox, NULL, ADDR haltMsg, ADDR haltMsgTitle, MB_OK
                 INVOKE ExitProcess, 0

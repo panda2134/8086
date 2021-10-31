@@ -2,16 +2,16 @@ IFNDEF TERM_INC
 TERM_INC equ <1>
 
 InitEmuScreen PROC ; call this only once to initialize the emulator screen
-LOCAL hCon:dword, hWin:dword, termSize:COORD, rect:SMALL_RECT
+LOCAL hCon:dword, hWin:dword, termSize:COORD, rect:SMALL_RECT, cursorInfo:CONSOLE_CURSOR_INFO
     INVOKE GetStdHandle, STD_OUTPUT_HANDLE
     mov hCon, eax
     mov rect.Left, 0
     mov rect.Top, 0
     mov rect.Right, 80-1
-    mov rect.Bottom, 25
+    mov rect.Bottom, 28
     INVOKE SetConsoleWindowInfo, hCon, 1, ADDR rect ; set the size of display area
     mov termSize.x, 80
-    mov termSize.y, 26
+    mov termSize.y, 29                              ; 25 lines for output, 2 lines for status, 1 line empty
     INVOKE SetConsoleScreenBufferSize, hCon, dword ptr termSize ; set the size of buffer (1 extra line)
     INVOKE GetConsoleWindow
 	mov hWin, eax
@@ -26,6 +26,9 @@ LOCAL hCon:dword, hWin:dword, termSize:COORD, rect:SMALL_RECT
 	not ecx
 	and eax, ecx ; eax := eax & ~WS_MAXIMIZEBOX & ~WS_SIZEBOX & ~WS_MINIMIZEBOX
 	INVOKE SetWindowLong, hWin, GWL_STYLE, eax
+    mov [cursorInfo.dwSize], 1
+    mov [cursorInfo.bVisible], 0
+    INVOKE SetConsoleCursorInfo, hCon, ADDR cursorInfo
 	ret
 InitEmuScreen ENDP
 
@@ -58,9 +61,47 @@ _loop:
     inc ecx
     jmp _loop
 _loop_end:
+    INVOKE SetConsoleCursorPosition, hCon, 0
+    INVOKE SetConsoleTextAttribute, hCon, 0 ; not visible
     mov eax, 0
     ret
 WriteEmuScreen ENDP
+
+loadStatusColor MACRO colorType
+    IFIDN <colorType>, <running>
+        mov eax, BACKGROUND_GREEN
+        or eax, BACKGROUND_INTENSITY
+        EXITM
+    ENDIF
+    IFIDN <colorType>, <paused>
+        mov eax, BACKGROUND_GREEN
+        or eax, BACKGROUND_RED 
+        or eax, BACKGROUND_INTENSITY
+        EXITM
+    ENDIF
+    echo Error: Unknown status
+ENDM
+
+WriteStatusLine PROC statusLine1:ptr byte, statusLine2:ptr byte, textAttr:dword ; suppose that both lines are 80 chars
+LOCAL hCon:dword, termCoord:COORD
+
+    INVOKE GetStdHandle, STD_OUTPUT_HANDLE
+    mov hCon, eax
+    INVOKE SetConsoleTextAttribute, hCon, textAttr
+    mov [termCoord.x], 0
+    mov [termCoord.y], 26 ; second last line
+    
+    INVOKE SetConsoleCursorPosition, hCon, dword ptr termCoord
+    INVOKE WriteConsoleA, hCon, statusLine1, 80, 0, 0
+    add [termCoord.y], 1
+    INVOKE SetConsoleCursorPosition, hCon, dword ptr termCoord
+    INVOKE WriteConsoleA, hCon, statusLine2, 80, 0, 0
+
+    INVOKE SetConsoleCursorPosition, hCon, 0
+    INVOKE SetConsoleTextAttribute, hCon, 0 ; not visible
+    ret
+
+WriteStatusLine ENDP
 
 ; GenTest PROC USES ebx esi edi, mem:ptr byte ; generate example text
 ; LOCAL chr:byte, startChr:byte
