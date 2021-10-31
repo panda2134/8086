@@ -34,13 +34,13 @@ R_DI            word 0
 
 REGS            label word                
 R_ES            word 0
-R_CS            word 7c0h ; mbr
+R_CS            word 0 ; mbr
 R_SS            word 0
 R_DS            word 0
 
 R_FLAGS         byte 0
 
-R_IP            word 0
+R_IP            word 7c00H
 
 MEMO_Guard      byte 00FFH
 
