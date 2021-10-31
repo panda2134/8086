@@ -902,6 +902,7 @@ ExecUD:
                 or ecx, MB_OK
                 INVOKE MessageBox, NULL, ADDR UDMsg, ADDR UDMsgTitle, ecx
                 add R_IP, 1 ; skip this opcode
+                add esp, 4; pop offset Executed
 Executed:
                 popad
                 jmp ExecLoop
