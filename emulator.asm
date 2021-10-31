@@ -318,7 +318,7 @@ ArithLogic ENDP
 modifyFlagsInstruction MACRO instruction
                 mov ah, R_FLAGS
                 sahf
-                inc REGW[eax * 2]
+                instruction
                 lahf
                 mov R_FLAGS, ah
 ENDM
@@ -339,11 +339,13 @@ Arith_INC_DEC PROC ; note: inc and dec is partial flags writer we need to load f
                 jnz RegOnlyDEC
                 ; other bits in eax already clear
                 ; INC
-                modifyFlagsInstruction <inc REGW[eax * 2]>
+                ; note: load flags use ah
+                lea edx, REGW[eax * 2]
+                modifyFlagsInstruction <inc word ptr [edx]>
                 ret
         RegOnlyDEC:
-                and eax, 0111b ; avoid partial write
-                modifyFlagsInstruction <dec REGW[eax * 2]>
+                lea edx, REGW[eax * 2 - 16] ; 1 reg[3]
+                modifyFlagsInstruction <dec word ptr [edx]>
                 ret
     RegOrMem:
                 test ah, 00110000b
