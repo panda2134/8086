@@ -51,7 +51,7 @@ MEMO            byte 1048576 DUP(?)
 
 
 ; mod[2] xxx r/m[3] passed by ah, start of instruction(host) passed by ebx
-; when r/m is reg, need to pass word/byte in last bit of al
+; when r/m is reg, need to pass word/byte in lowest bit of al
 ; not modify al, ah and ebx
 ; effective address(host) returned by edx,
 ; end of displacement field(host) returned by esi
@@ -314,6 +314,66 @@ ArithLogic PROC
                 ret
 ArithLogic ENDP
 
+; use ah
+modifyFlagsInstruction MACRO instruction
+                mov ah, R_FLAGS
+                sahf
+                inc REGW[eax * 2]
+                lahf
+                mov R_FLAGS, ah
+ENDM
+
+Arith_INC_DEC PROC ; note: inc and dec is partial flags writer we need to load flags before inc or dec
+                movzx eax, word ptr [ebx] ; read 2 byte at once, may exceed 1M, but we are in a emulator
+                
+                xor al, 01000000b 
+                test al, 11110000b ; high 4 0100
+                jz RegOnly
+                xor al, 10111110b ; equiv to xor 11111110 at once
+                test al, 11111110b 
+                jz RegOrMem
+                jmp ecx
+    RegOnly:
+                test al, 00001000b
+                jnz RegOnlyDEC
+                ; other bits in eax already clear
+                ; INC
+                modifyFlagsInstruction <inc REGW[eax * 2]>
+                ret
+        RegOnlyDEC:
+                and eax, 0111b ; avoid partial write
+                modifyFlagsInstruction <dec REGW[eax * 2]>
+                ret
+    RegOrMem:
+                test ah, 00110000b
+                jz Match
+                jmp ecx ; other instructions
+        Match:
+                ; note: al lowest bit already w[1]
+                computeEffectiveAddress INC_DEC_ComputeEA_Done, 0, R_DS
+        INC_DEC_ComputeEA_Done:
+                test ah, 00001000b
+                jnz RegOrMemDEC
+                ; INC
+                test al, 0001b
+                jnz WordINC
+                ; byte INC
+                modifyFlagsInstruction <inc byte ptr [edx]>
+                ret
+            WordINC:
+                modifyFlagsInstruction <inc word ptr [edx]>
+                ret
+        RegOrMemDEC:
+                test al, 0001b
+                jnz WordDEC
+                ; byte DEC
+                modifyFlagsInstruction <dec byte ptr [edx]>
+                ret
+        WordDEC:
+                modifyFlagsInstruction <dec word ptr [edx]>
+                ret
+Arith_INC_DEC ENDP
+
 ; uses ah
 GenerateJmpConditional MACRO jmp_cc
                 movsx di, ah
@@ -349,14 +409,14 @@ ControlTransfer PROC
                 cmp al, 0C2h
                 je Ret_Near
                 cmp al, 0CAh
-                ; edi alread load
+                ; edi already load
                 je Ret_Far
 
                 xor edi, edi ; pop 0 byte
                 cmp al, 0C3h
                 je Ret_Near
                 cmp al, 0CBh
-                ; edi alread clear
+                ; edi already clear
                 je Ret_Far
 
                 jmp ecx ; other instructions
@@ -723,7 +783,7 @@ DataTransferStack PROC
                 mov word ptr MEMO[ebx + esi - 2], ax
                 ret
     EA_Compute:
-                or al, 0001b ; set last bit indicate word register in r/m
+                or al, 0001b ; set lowest bit indicate word register in r/m, which is xor cleared on instruction type check
                 computeEffectiveAddress EA_Done, 0, R_DS
         EA_Done:
                 sub esi, ebx
@@ -746,18 +806,14 @@ FlagInstruction PROC
                 cmp al, 0F9h
                 je ProcessStc
                 jmp ecx
-ProcessClc:     
-                lahf
-                clc
-                sahf
-                jmp StcClcDone
-        ProcessStc:     
-                lahf
-                stc
-                sahf
-                ; fall through
-StcClcDone:     
-                add R_IP, 1 ; 1 byte long
+    ProcessClc:
+                add R_IP, 1
+                modifyFlagsInstruction <clc>
+                
+                ret
+    ProcessStc:
+                add R_IP, 1
+                modifyFlagsInstruction <stc>
                 ret
 FlagInstruction ENDP
 
@@ -771,7 +827,7 @@ XchgInstruction PROC
                 jz XchgAX
                 jmp ecx
 XchgAX:         
-                ; other bits in eax alread clear
+                ; other bits in eax already clear
                 add R_IP, 1
                 mov bx, R_AX
                 xchg bx, word ptr REGW[eax * 2]
