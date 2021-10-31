@@ -335,17 +335,16 @@ Arith_INC_DEC PROC ; note: inc and dec is partial flags writer we need to load f
                 jmp ecx
     RegOnly:
                 add R_IP, 1 ; 1byte long
+                movzx ebx, al
                 test al, 00001000b
                 jnz RegOnlyDEC
                 ; other bits in eax already clear
                 ; INC
                 ; note: load flags use ah
-                lea edx, REGW[eax * 2]
-                modifyFlagsInstruction <inc word ptr [edx]>
+                modifyFlagsInstruction <inc word ptr REGW[ebx * 2]>
                 ret
         RegOnlyDEC:
-                lea edx, REGW[eax * 2 - 16] ; 1 reg[3]
-                modifyFlagsInstruction <dec word ptr [edx]>
+                modifyFlagsInstruction <dec word ptr REGW[ebx * 2 - 16]> ; 1 reg[3], *2 - 16
                 ret
     RegOrMem:
                 test ah, 00110000b
