@@ -155,30 +155,12 @@ computeFlatIP MACRO
 ENDM
 
 ; use ah
-modifyFlagsInstruction MACRO instruction, protectEAX
-                IF protectEAX
-                    push eax
-                ENDIF
-
+modifyFlagsInstruction MACRO instruction
                 mov ah, R_FLAGS
                 sahf
-
-                IF protectEAX
-                    pop eax
-                ENDIF
-
                 instruction
-
-                IF protectEAX
-                    push eax
-                ENDIF
-
                 lahf
                 mov R_FLAGS, ah
-
-                IF protectEAX
-                    pop eax
-                ENDIF
 ENDM
 
 ; error case return address passed by ecx
@@ -254,7 +236,7 @@ ArithLogic PROC
                 ; use 8bit partial reg for convenience
                 ; generally that will be slower because of partial register stalls
                 ; fortunately we don't need to read from cx or ecx, actually no stall occur
-                mov al, byte ptr [esi] ; src operand
+                mov cl, byte ptr [esi] ; src operand
                 and ebx, 00111000b ; xx op[3] xxx, select bits, clear others
                 ; Not shift, eliminate index * 8 for OpTable
                 jmp dword ptr [OpTable + ebx]
@@ -264,10 +246,10 @@ ArithLogic PROC
                 jz NotSignExt ; Not Imm to r/m
                 test al, 0010b; s[1]
                 jz NotSignExt
-                movsx ax, byte ptr [esi] ; src operand, sign ext
+                movsx cx, byte ptr [esi] ; src operand, sign ext
                 jmp OperandWExec
     NotSignExt:
-                mov ax, word ptr [esi] ; src operand
+                mov cx, word ptr [esi] ; src operand
                 ; fall-through
     OperandWExec:
                 and ebx, 00111000b ; xx op[3] xxx, select bits, clear others
@@ -286,53 +268,61 @@ ArithLogic PROC
                 dword B_CMP, W_CMP
     ByteOp:
         B_CMP:
-                cmp byte ptr [edx], al
+                cmp byte ptr [edx], cl
                 jmp WriteFlags
         B_XOR:
-                xor byte ptr [edx], al
+                xor byte ptr [edx], cl
                 jmp WriteFlags
         B_SUB:
-                sub byte ptr [edx], al
+                sub byte ptr [edx], cl
                 jmp WriteFlags
         B_AND:
-                and byte ptr [edx], al
+                and byte ptr [edx], cl
                 jmp WriteFlags
         B_SBB:
-                modifyFlagsInstruction <sbb byte ptr [edx], al>, 0 ; do not use ah here
+                mov ah, R_FLAGS
+                sahf
+                sbb byte ptr [edx], cl
                 jmp WriteFlags
         B_ADC:
-                modifyFlagsInstruction <adc byte ptr [edx], al>, 0 ; do not use ah here
+                mov ah, R_FLAGS
+                sahf
+                adc byte ptr [edx], cl
                 jmp WriteFlags
         B_OR:
-                or byte ptr [edx], al
+                or byte ptr [edx], cl
                 jmp WriteFlags
         B_ADD:
-                add byte ptr [edx], al
+                add byte ptr [edx], cl
                 jmp WriteFlags
     WordOp:
         W_CMP:
-                cmp word ptr [edx], ax
+                cmp word ptr [edx], cx
                 jmp WriteFlags
         W_XOR:
-                xor word ptr [edx], ax
+                xor word ptr [edx], cx
                 jmp WriteFlags
         W_SUB:
-                sub word ptr [edx], ax
+                sub word ptr [edx], cx
                 jmp WriteFlags
         W_AND:
-                and word ptr [edx], ax
+                and word ptr [edx], cx
                 jmp WriteFlags
         W_SBB:
-                modifyFlagsInstruction <sbb word ptr [edx], ax>, 1 ; we use ah!
+                mov ah, R_FLAGS
+                sahf
+                sbb word ptr [edx], cx
                 jmp WriteFlags
         W_ADC:
-                modifyFlagsInstruction <adc word ptr [edx], ax>, 1
+                mov ah, R_FLAGS
+                sahf
+                adc word ptr [edx], cx
                 jmp WriteFlags
         W_OR:
-                or word ptr [edx], ax
+                or word ptr [edx], cx
                 jmp WriteFlags
         W_ADD:
-                add word ptr [edx], ax
+                add word ptr [edx], cx
                 ; fall-through
     WriteFlags:
                 lahf ; load flags into ah
