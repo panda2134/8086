@@ -316,11 +316,10 @@ ArithLogic ENDP
 
 ; uses ah
 GenerateJmpConditional MACRO jmp_cc
-                push eax
+                movsx di, ah
                 mov ah, R_FLAGS
                 sahf
-                pop eax
-                jmp_cc Jmp_Short_Rel8
+                jmp_cc Jmp_Short_Rel8_Inner
                 ret
 ENDM
 
@@ -381,6 +380,7 @@ ControlTransfer PROC
 
     Jmp_Short_Rel8:
                 movsx di, ah
+    Jmp_Short_Rel8_Inner:
                 add di, 2 ; instruction length = 2 bytes
                 add R_IP, di ; ip += rel8 sign extended to 16bit (relative to next instruction)
                 ret
