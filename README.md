@@ -1,12 +1,16 @@
 # 说明文档
 
+## 小组分工
+
++ 刘江宜：TUI界面，模拟器显存渲染，控制流指令，测试程序，调试
++ 游嘉诚：其余所有指令，代码优化，整理8086机器码文档
+
 ## 开发环境
 
-masm32
-
-ollydbg
-
-vscode, git
+- Windows 10
+- MASM32 
+- OllyDbg
+- Visual Studio Code, Git
 
 ## 功能实现
 
