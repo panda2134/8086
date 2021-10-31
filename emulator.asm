@@ -854,10 +854,10 @@ XchgInstruction PROC
                 jz XchgAX
                 jmp ecx
 XchgAX:         
-                ; other bits in eax already clear
+                ; other bits in al already clear, only need to clear ah, but we just clear all
                 add R_IP, 1
                 mov bx, R_AX
-                and eax, 0FFh
+                and eax, 0111b
                 xchg bx, word ptr REGW[eax * 2]
                 mov R_AX, bx
                 ret
