@@ -316,8 +316,10 @@ ArithLogic ENDP
 
 ; uses ah
 GenerateJmpConditional MACRO jmp_cc
+                push eax
                 mov ah, R_FLAGS
                 sahf
+                pop eax
                 jmp_cc Jmp_Short_Rel8
                 ret
 ENDM
