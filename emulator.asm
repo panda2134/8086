@@ -95,7 +95,7 @@ computeEffectiveAddress MACRO LeaveLabel, DisableFallThroughLeave, SegmentType
                 movzx ecx, ah ; mod[2] reg[3] r/m[3]
                 test ecx, 0100b
                 jnz RM_Is1XX
-                ; r/m = 0xx
+                ; r/m = 0,b,i
                 and ecx, 0010b ; Base = b ? BP : BX, R_BP = R_BX + 4
                 movzx edx, word ptr R_BX[ecx * 2] ; actually word ptr is not needed
                 movzx ecx, ah ; mod[2] reg[3] r/m[3]
@@ -106,12 +106,12 @@ computeEffectiveAddress MACRO LeaveLabel, DisableFallThroughLeave, SegmentType
     RM_Is1XX:
                 test ecx, 0010b
                 jnz RM_Is11X
-                ; r/m = 10x
+                ; r/m = 1,0,i
                 and ecx, 0001b ; Index = i ? DI : SI, R_DI = R_SI + 4
                 movzx edx, word ptr R_SI[ecx * 2]
                 jmp AddDisplacment
     RM_Is11X:
-                ; r/m = 11x
+                ; r/m = 1,1,~b
                 and ecx, 0001b ; Base = b ? BX : BP, R_BP = R_BX + 4
                 xor ecx, 1
                 movzx edx, word ptr R_BX[ecx * 4]
