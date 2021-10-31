@@ -579,10 +579,10 @@ DataTransferMOV PROC
                 xor al, 10001000b
                 test al, 11111100b ; high 6 100010
                 jz RegWithRegOrMem ; 100010xx
-                xor al, 00000100b ; equiv to xor 10001100b at once
-                test al, 11111101b ; 
-                jz SegRegWithRegOrMem; 100011x0
-                xor al, 00101100b ; equiv to xor 10100000b at once
+                ; not xor
+                test al, 11111001b
+                jz SegRegWithRegOrMem; 100011x0, previous test with 11111100b not zero, thus test with 0100b must not zero
+                xor al, 00101000b ; equiv to xor 10100000b at once
                 test al, 11111100b ; high 6 101000
                 jz MemWithAccumulator
                 xor al, 00010000b ; equiv to xor 10110000b at once
